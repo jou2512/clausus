@@ -26,6 +26,9 @@ build/
 .idea/
 .vscode/
 
+# Clausus receipts (local audit trail, may name what was masked)
+runs/
+
 # Python build artefacts
 *.egg-info/
 .ruff_cache/

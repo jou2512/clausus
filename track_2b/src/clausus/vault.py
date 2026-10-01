@@ -1,0 +1,108 @@
+"""The vault: maps confidential text to placeholders and back. It never leaves the house.
+
+One vault per session. The same person gets the same placeholder throughout,
+also when only the surname or first name comes up later ("Thomas Brunner" ->
+"Brunner"). An ambiguous short form ("Thomas" with two Thomases) is never merged.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+from clausus.models import Span
+
+_STOP = {"ag", "gmbh", "sa", "sàrl", "sarl", "kg", "de", "vo", "von", "der", "die", "das", "dr",
+         "herr", "frau", "&", "und", "and", "the", "inc", "ltd"}
+_TOKEN = re.compile(r"\[[A-Z]+_\d+\]")
+
+
+def _words(text: str) -> list[str]:
+    return [w for w in re.split(r"[^\wäöüÄÖÜàéèç&]+", text.casefold()) if w]
+
+
+def _significant(text: str) -> frozenset[str]:
+    words = _words(text)
+    sig = frozenset(w for w in words if w not in _STOP)
+    return sig or frozenset(words)
+
+
+@dataclass
+class _Entry:
+    token: str
+    type: str
+    variants: list[str] = field(default_factory=list)
+    keys: frozenset[str] = frozenset()
+
+    @property
+    def canonical(self) -> str:
+        return max(self.variants, key=len)
+
+
+class Vault:
+    def __init__(self) -> None:
+        self._entries: list[_Entry] = []
+        self._counters: dict[str, int] = {}
+
+    # --- registration -----------------------------------------------------------------------
+    def token_for(self, text: str, span_type: str) -> str:
+        text = text.strip()
+        keys = _significant(text)
+        same_type = [e for e in self._entries if e.type == span_type]
+        for e in same_type:
+            if any(v.casefold() == text.casefold() for v in e.variants):
+                return e.token
+        related = [e for e in same_type if keys and (keys <= e.keys or e.keys <= keys)]
+        if len(related) == 1:
+            e = related[0]
+            e.variants.append(text)
+            e.keys = e.keys | keys
+            return e.token
+        n = self._counters.get(span_type, 0) + 1
+        self._counters[span_type] = n
+        entry = _Entry(token=f"[{span_type}_{n}]", type=span_type, variants=[text], keys=keys)
+        self._entries.append(entry)
+        return entry.token
+
+    def preload(self, known: list[tuple[str, str]]) -> None:
+        """Names the user already knows are confidential (attendee or client list)."""
+        for text, span_type in known:
+            if text.strip():
+                self.token_for(text, span_type)
+
+    @property
+    def tokens(self) -> list[tuple[str, str]]:
+        return [(e.token, e.type) for e in self._entries]
+
+    # --- masking ----------------------------------------------------------------------------
+    def pseudonymize(self, text: str, spans: list[Span]) -> str:
+        out = text
+        for s in sorted(spans, key=lambda s: s.start, reverse=True):
+            out = out[:s.start] + self.token_for(s.text, s.type) + out[s.end:]
+        return self._sweep(out)
+
+    def _sweep(self, text: str) -> str:
+        """Mask every later mention of something already known (SPEC: once found, always found)."""
+        needles: dict[str, set[str]] = {}
+        for e in self._entries:
+            for v in e.variants:
+                needles.setdefault(v.casefold(), set()).add(e.token)
+            if e.type == "PERSON":
+                for w in e.keys:
+                    if len(w) >= 3:
+                        needles.setdefault(w, set()).add(e.token)
+        for needle in sorted(needles, key=len, reverse=True):
+            tokens = needles[needle]
+            if len(tokens) != 1:
+                continue  # ambiguous short form: do not guess which person
+            token = next(iter(tokens))
+            pattern = re.compile(rf"(?<![\w\[]){re.escape(needle)}(?![\w\]])", re.IGNORECASE)
+            text = pattern.sub(token, text)
+        return text
+
+    def restore(self, text: str) -> str:
+        lookup = {e.token: e.canonical for e in self._entries}
+        return _TOKEN.sub(lambda m: lookup.get(m.group(0), m.group(0)), text)
+
+    def knows(self, token: str) -> bool:
+        return any(e.token == token for e in self._entries)

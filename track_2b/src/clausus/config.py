@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from clausus.errors import ConfigError
 
 DEFAULT_MODEL = "apertus-v1.5-70b"
+DEFAULT_FAST_MODEL = "apertus-v1.5-8b"
 REQUIRED = ("LLM_BASE_URL", "LLM_API_KEY")
 
 __all__ = ["DEFAULT_MODEL", "ConfigError", "Settings"]
@@ -19,6 +20,8 @@ class Settings:
     llm_base_url: str
     llm_api_key: str = field(repr=False)
     llm_name: str = DEFAULT_MODEL
+    runs_dir: str = "runs"
+    fast_model: str = DEFAULT_FAST_MODEL
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -36,4 +39,6 @@ class Settings:
             llm_base_url=url,
             llm_api_key=env["LLM_API_KEY"].strip(),
             llm_name=env.get("LLM_NAME", "").strip() or DEFAULT_MODEL,
+            runs_dir=env.get("CLAUSUS_RUNS_DIR", "").strip() or "runs",
+            fast_model=env.get("CLAUSUS_FAST_MODEL", "").strip() or DEFAULT_FAST_MODEL,
         )
