@@ -72,7 +72,7 @@ def _locate(text: str, needle: str, span_type: str) -> list[Span]:
 
 def detect_with_model(text: str, llm: ChatModel) -> list[Span]:
     """Broad pass over all confidential categories."""
-    data = extract_json(llm.chat([{"role": "user", "content": PROMPT + text}]))
+    data = extract_json(llm.chat([{"role": "user", "content": PROMPT + text}], step="detect"))
     items = data.get("stellen", []) if isinstance(data, dict) else []
     spans: dict[tuple[int, int], Span] = {}
     for item in items:
@@ -88,7 +88,8 @@ def detect_persons(text: str, llm: ChatModel, model: str | None = None) -> list[
     """Narrow pass for people only. Measured 02.10.2026: the broad pass on Apertus 70B
     missed a lone Swiss German first name ("D'Nadine") every time at temperature 0;
     this narrow pass found it on both 70B and 8B."""
-    data = extract_json(llm.chat([{"role": "user", "content": PERSON_PROMPT + text}], model=model))
+    data = extract_json(llm.chat([{"role": "user", "content": PERSON_PROMPT + text}], model=model,
+                                 step="detect_persons"))
     names = data.get("personen", []) if isinstance(data, dict) else []
     spans: list[Span] = []
     for name in names:

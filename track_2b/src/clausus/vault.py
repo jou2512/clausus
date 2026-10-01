@@ -101,8 +101,22 @@ class Vault:
         return text
 
     def restore(self, text: str) -> str:
+        """Put originals back. If the answer already wrote the first word of the original
+        right before the placeholder ("Projekt [PROJECT_1]" for "Projekt Nordlicht"), that
+        word is not doubled."""
         lookup = {e.token: e.canonical for e in self._entries}
-        return _TOKEN.sub(lambda m: lookup.get(m.group(0), m.group(0)), text)
+
+        def put_back(m: re.Match[str]) -> str:
+            before, token = m.group(1) or "", m.group(2)
+            original = lookup.get(token)
+            if original is None:
+                return m.group(0)
+            first = original.split(" ", 1)[0]
+            if before and before.strip().casefold() == first.casefold():
+                return original
+            return before + original
+
+        return re.sub(r"(\b[\wäöüÄÖÜ]+\s+)?(\[[A-Z]+_\d+\])", put_back, text)
 
     def knows(self, token: str) -> bool:
         return any(e.token == token for e in self._entries)

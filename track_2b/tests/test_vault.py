@@ -59,6 +59,14 @@ def test_restore_round_trip_is_exact():
     assert v.restore(masked) == text
 
 
+def test_restore_does_not_double_a_word_the_answer_already_put_in_front():
+    v = Vault()
+    v.token_for("Projekt Nordlicht", "PROJECT")
+    assert v.restore("Beim Projekt [PROJECT_1] gab es") == "Beim Projekt Nordlicht gab es"
+    assert v.restore("Beim projekt [PROJECT_1]") == "Beim Projekt Nordlicht"
+    assert v.restore("Das [PROJECT_1] läuft") == "Das Projekt Nordlicht läuft"
+
+
 def test_assemble_restores_and_flags_invented_placeholder():
     v = Vault()
     v.token_for("Reto Ammann", "PERSON")

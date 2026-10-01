@@ -22,6 +22,15 @@ class Settings:
     llm_name: str = DEFAULT_MODEL
     runs_dir: str = "runs"
     fast_model: str = DEFAULT_FAST_MODEL
+    routes_path: str = ""
+    # Optional external target for masked text (product configuration, off by default).
+    external_base_url: str = ""
+    external_api_key: str = field(default="", repr=False)
+    external_model: str = ""
+
+    @property
+    def external_configured(self) -> bool:
+        return bool(self.external_base_url and self.external_api_key)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -41,4 +50,8 @@ class Settings:
             llm_name=env.get("LLM_NAME", "").strip() or DEFAULT_MODEL,
             runs_dir=env.get("CLAUSUS_RUNS_DIR", "").strip() or "runs",
             fast_model=env.get("CLAUSUS_FAST_MODEL", "").strip() or DEFAULT_FAST_MODEL,
+            routes_path=env.get("CLAUSUS_ROUTES", "").strip(),
+            external_base_url=env.get("EXTERNAL_BASE_URL", "").strip().rstrip("/"),
+            external_api_key=env.get("EXTERNAL_API_KEY", "").strip(),
+            external_model=env.get("EXTERNAL_MODEL", "").strip(),
         )
