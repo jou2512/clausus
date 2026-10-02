@@ -16,6 +16,7 @@ from clausus.config import Settings
 from clausus.detect import detect
 from clausus.errors import ClaususError
 from clausus.final_check import final_check
+from clausus.hear import HearClient
 from clausus.llm import ApertusClient, ChatClient, Recorded
 from clausus.models import Span, SpanType
 from clausus.receipt import Outgoing, PlaceholderInfo, Receipt, write_receipt
@@ -61,11 +62,13 @@ def _placeholders(vault: Vault, spans: list[Span]) -> list[PlaceholderInfo]:
 
 
 def create_app(settings: Settings | None = None, http_client: httpx.Client | None = None,
-               external_http: httpx.Client | None = None) -> FastAPI:
+               external_http: httpx.Client | None = None,
+               hear_http: httpx.Client | None = None) -> FastAPI:
     """App factory. Without arguments it reads the environment and fails loudly
     if configuration is missing (run with `uvicorn --factory clausus.app:create_app`)."""
     settings = settings or Settings.from_env()
     apertus = ApertusClient(settings, http_client)
+    hear = HearClient(settings.hear_url, hear_http)
     external = (ChatClient(settings.external_base_url, settings.external_api_key,
                            settings.external_model or settings.llm_name, "external", external_http)
                 if settings.external_configured else None)
@@ -94,12 +97,14 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                          "detail": e.message},
             )
         available = settings.llm_name in models
+        hear_status = hear.health()
         return JSONResponse(content={
-            "status": "ok" if available else "degraded",
+            "status": "ok" if available and hear_status == "ok" else "degraded",
             "apertus": "ok",
             "model": settings.llm_name,
             "model_available": available,
             "models": models,
+            "hear": hear_status,
         })
 
     @app.post("/redact")

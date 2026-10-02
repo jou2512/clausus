@@ -1,0 +1,86 @@
+import base64
+import json
+
+import httpx
+import pytest
+
+from clausus.errors import ClaususError
+from clausus.hear import HearClient
+from clausus.llm import Recorded
+from clausus.see import read_image
+
+
+def hear(handler) -> HearClient:
+    return HearClient("http://hear.test:8000", httpx.Client(transport=httpx.MockTransport(handler)))
+
+
+def test_hear_client_posts_file_and_returns_text():
+    seen = {}
+
+    def handler(req):
+        seen["path"] = req.url.path
+        seen["body"] = req.content
+        return httpx.Response(200, json={"text": "Hallo zusammen.", "segments": [], "duration_s": 2.0,
+                                         "device": "cpu"})
+
+    result = hear(handler).transcribe(b"AUDIO-BYTES", "meeting.m4a")
+    assert result.text == "Hallo zusammen."
+    assert result.duration_s == 2.0
+    assert seen["path"] == "/transcribe"
+    assert b"AUDIO-BYTES" in seen["body"] and b"meeting.m4a" in seen["body"]
+
+
+@pytest.mark.parametrize("status,code", [(503, "hear_loading"), (422, "hear_bad_audio"), (500, "hear_failed")])
+def test_hear_client_maps_errors(status, code):
+    with pytest.raises(ClaususError) as e:
+        hear(lambda req: httpx.Response(status, json={"detail": "x"})).transcribe(b"a", "a.wav")
+    assert e.value.code == code
+
+
+def test_hear_client_unreachable():
+    def down(req):
+        raise httpx.ConnectError("no")
+
+    with pytest.raises(ClaususError) as e:
+        hear(down).transcribe(b"a", "a.wav")
+    assert e.value.code == "hear_unreachable"
+
+
+def test_hear_health_states():
+    assert hear(lambda r: httpx.Response(200, json={"status": "ok"})).health() == "ok"
+    assert hear(lambda r: httpx.Response(200, json={"status": "loading"})).health() == "loading"
+
+    def down(req):
+        raise httpx.ConnectError("no")
+
+    assert hear(down).health() == "unreachable"
+
+
+class Echo:
+    destination = "apertus @ a.test"
+    model = "m"
+
+    def __init__(self):
+        self.messages = None
+
+    def chat(self, messages, model=None, step=None):
+        self.messages = messages
+        return "Projekt Nordlicht – Steering Committee"
+
+
+def test_read_image_sends_data_url_and_instruction_and_records_as_original():
+    inner, outgoing = Echo(), []
+    text = read_image(b"\x89PNG-bytes", "image/png", Recorded(inner, outgoing, "original"))
+    assert text == "Projekt Nordlicht – Steering Committee"
+    content = inner.messages[0]["content"]
+    kinds = [c["type"] for c in content]
+    assert kinds == ["text", "image_url"]
+    assert content[1]["image_url"]["url"] == "data:image/png;base64," + base64.b64encode(b"\x89PNG-bytes").decode()
+    assert [(o.step, o.kind, o.text) for o in outgoing] == [("see", "original", None)]
+    assert "PNG-bytes" not in json.dumps([o.model_dump() for o in outgoing])
+
+
+def test_read_image_rejects_non_image_mime():
+    with pytest.raises(ClaususError) as e:
+        read_image(b"x", "application/pdf", Echo())
+    assert e.value.code == "unsupported_image"

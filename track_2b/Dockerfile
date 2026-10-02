@@ -6,8 +6,10 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
 RUN pip install --no-cache-dir . \
-    && useradd --create-home clausus
+    && useradd --create-home clausus \
+    && mkdir -p /data/runs && chown clausus /data/runs
 USER clausus
+ENV CLAUSUS_RUNS_DIR=/data/runs
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

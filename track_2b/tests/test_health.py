@@ -10,9 +10,24 @@ SETTINGS = Settings.from_env(
 )
 
 
-def client_with(handler) -> TestClient:
+def client_with(handler, hear_status="ok") -> TestClient:
     http = httpx.Client(transport=httpx.MockTransport(handler))
-    return TestClient(create_app(settings=SETTINGS, http_client=http))
+    if hear_status == "unreachable":
+        def hear_handler(req):
+            raise httpx.ConnectError("no")
+    else:
+        def hear_handler(req):
+            return httpx.Response(200, json={"status": hear_status})
+    hear = httpx.Client(transport=httpx.MockTransport(hear_handler))
+    return TestClient(create_app(settings=SETTINGS, http_client=http, hear_http=hear))
+
+
+def test_health_is_degraded_while_hear_is_loading_or_unreachable():
+    ok = lambda req: httpx.Response(200, json={"data": [{"id": "apertus-v1.5-70b"}]})
+    for state in ("loading", "unreachable"):
+        body = client_with(ok, hear_status=state).get("/health").json()
+        assert body["status"] == "degraded"
+        assert body["hear"] == state
 
 
 def test_health_ok_lists_models_and_confirms_configured_model():
@@ -32,6 +47,7 @@ def test_health_ok_lists_models_and_confirms_configured_model():
         "model": "apertus-v1.5-70b",
         "model_available": True,
         "models": ["apertus-v1.5-70b", "apertus-v1.5-8b"],
+        "hear": "ok",
     }
     assert seen["url"] == "https://apertus.test/v1/models"
     assert seen["auth"] == "Bearer sk-secret-123"

@@ -27,6 +27,7 @@ class Settings:
     external_base_url: str = ""
     external_api_key: str = field(default="", repr=False)
     external_model: str = ""
+    hear_url: str = "http://hear:8000"
 
     @property
     def external_configured(self) -> bool:
@@ -54,4 +55,5 @@ class Settings:
             external_base_url=env.get("EXTERNAL_BASE_URL", "").strip().rstrip("/"),
             external_api_key=env.get("EXTERNAL_API_KEY", "").strip(),
             external_model=env.get("EXTERNAL_MODEL", "").strip(),
+            hear_url=env.get("CLAUSUS_HEAR_URL", "").strip() or "http://hear:8000",
         )

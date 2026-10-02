@@ -1,0 +1,14 @@
+# Use with: make run-gpu  (needs an NVIDIA GPU and the NVIDIA container toolkit)
+services:
+  hear:
+    image: clausus-hear-gpu
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu126
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

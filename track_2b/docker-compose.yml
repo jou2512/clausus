@@ -2,7 +2,28 @@ services:
   clausus:
     build: .
     env_file: .env
+    environment:
+      CLAUSUS_HEAR_URL: http://hear:8000
     ports:
       # Host port is configurable in case 8080 is taken (CLAUSUS_PORT in .env).
       - "${CLAUSUS_PORT:-8080}:8080"
+    volumes:
+      - runs:/data/runs  # receipts survive restarts
+    depends_on:
+      - hear
     restart: unless-stopped
+
+  hear:
+    # Swiss German speech to text, local. CPU by default; `make run-gpu` uses the GPU.
+    build:
+      context: .
+      dockerfile: Dockerfile.hear
+    environment:
+      HEAR_BATCH_SIZE: "${HEAR_BATCH_SIZE:-2}"
+    volumes:
+      - hf-cache:/models  # the ~3 GB model is downloaded once
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
+  runs:

@@ -1,11 +1,17 @@
-.PHONY: run stop test
+.PHONY: run run-gpu stop test
 
-# Starts Clausus in Docker. Works from a clean checkout once .env exists.
+GPU = -f docker-compose.yml -f docker-compose.gpu.yml
+
+# Starts Clausus in Docker (speech model on CPU). Works from a clean checkout once .env exists.
 run: .env
 	docker compose up --build
 
+# Same, with the speech model on an NVIDIA GPU (needs the NVIDIA container toolkit).
+run-gpu: .env
+	docker compose $(GPU) up --build
+
 stop:
-	docker compose down
+	docker compose $(GPU) down
 
 test:
 	python -m pytest -q

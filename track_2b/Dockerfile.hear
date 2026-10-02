@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+# CPU build by default; docker-compose.gpu.yml switches to the CUDA build.
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HOME=/models
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+RUN pip install --no-cache-dir torch --index-url ${TORCH_INDEX_URL}
+COPY pyproject.toml ./
+COPY src ./src
+RUN pip install --no-cache-dir ".[hear]" \
+    && useradd --create-home hear \
+    && mkdir -p /models && chown hear /models
+USER hear
+
+EXPOSE 8000
+# The model (~3 GB) is downloaded on first start into the hf-cache volume.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=900s --retries=3 \
+    CMD python -c "import json,urllib.request,sys; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=8))['status']=='ok' else 1)"
+
+CMD ["uvicorn", "--factory", "hear_service.app:create_app", "--host", "0.0.0.0", "--port", "8000"]
