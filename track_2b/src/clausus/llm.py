@@ -34,6 +34,8 @@ class ChatClient:
     def _check(self, r: httpx.Response) -> None:
         if r.status_code in (401, 403):
             raise ClaususError("auth_failed", f"{self.label} rejected the API key.")
+        if r.status_code == 429:
+            raise ClaususError("rate_limited", f"{self.label} is rate-limiting us (HTTP 429). Try again shortly.")
         if r.status_code >= 400:
             raise ClaususError("bad_response", f"{self.label} answered HTTP {r.status_code}.")
 

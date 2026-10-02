@@ -22,6 +22,35 @@ def client_with(handler, hear_status="ok") -> TestClient:
     return TestClient(create_app(settings=SETTINGS, http_client=http, hear_http=hear))
 
 
+def test_health_caches_the_model_list_so_polling_does_not_burn_the_rate_limit():
+    """02.10.2026: Docker's healthcheck polled /health every 30 s and each call hit Apertus
+    /models; after a stall the catch-up burst got HTTP 429 from the endpoint."""
+    calls = []
+
+    def handler(req):
+        calls.append(req.url.path)
+        return httpx.Response(200, json={"data": [{"id": "apertus-v1.5-70b"}]})
+
+    c = client_with(handler)
+    for _ in range(5):
+        assert c.get("/health").json()["apertus"] == "ok"
+    assert calls == ["/v1/models"]
+
+
+def test_rate_limit_is_reported_as_such():
+    r = client_with(lambda req: httpx.Response(429, json={"error": "slow down"})).get("/health")
+    assert r.status_code == 503
+    assert r.json()["apertus"] == "rate_limited"
+
+
+def test_live_does_not_call_any_model():
+    calls = []
+    c = client_with(lambda req: calls.append(req) or httpx.Response(500))
+    r = c.get("/live")
+    assert r.status_code == 200 and r.json() == {"status": "alive"}
+    assert calls == []
+
+
 def test_health_is_degraded_while_hear_is_loading_or_unreachable():
     ok = lambda req: httpx.Response(200, json={"data": [{"id": "apertus-v1.5-70b"}]})
     for state in ("loading", "unreachable"):

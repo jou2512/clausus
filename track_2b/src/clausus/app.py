@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import uuid
 from collections import Counter
 from pathlib import Path
@@ -94,10 +95,21 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         spans = detect(text, Recorded(apertus, outgoing, "original"), person_model=settings.fast_model)
         return vault, spans, vault.pseudonymize(text, spans)
 
+    models_cache: dict[str, Any] = {"at": 0.0, "models": None}
+
+    @app.get("/live")
+    def live() -> JSONResponse:
+        """Liveness only, calls nothing. Used by the Docker healthcheck so that polling
+        never spends the model endpoint's rate limit."""
+        return JSONResponse(content={"status": "alive"})
+
     @app.get("/health")
     def health() -> JSONResponse:
         try:
-            models = apertus.list_models()
+            if models_cache["models"] is None or time.monotonic() - models_cache["at"] > 60:
+                models_cache["models"] = apertus.list_models()
+                models_cache["at"] = time.monotonic()
+            models = models_cache["models"]
         except ClaususError as e:
             return JSONResponse(
                 status_code=503,
