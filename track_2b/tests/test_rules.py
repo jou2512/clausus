@@ -20,8 +20,8 @@ def found(text):
         ("das kostet 45'000 Franken total", ("45'000 Franken", "AMOUNT")),
         ("Offerte bis am 15. Oktober schicken", ("15. Oktober", "DATE")),
         ("Steering am 07.10.2026 in Bern", ("07.10.2026", "DATE")),
-        ("Stand vom Projekt Alpenblick heute", ("Projekt Alpenblick", "PROJECT")),
-        ("Stand des Projekts Nordlicht-2 heute", ("Projekts Nordlicht-2", "PROJECT")),
+        ("Stand vom Projekt Alpenblick heute", ("Alpenblick", "PROJECT")),
+        ("Stand des Projekts Nordlicht-2 heute", ("Nordlicht-2", "PROJECT")),
     ],
 )
 def test_swiss_formats_are_found_with_exact_text_and_type(text, expected):

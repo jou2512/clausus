@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from collections import Counter
+from pathlib import Path
 from typing import Annotated, Any
 
 import httpx
@@ -29,6 +31,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 log = logging.getLogger("clausus.app")
 
 _CLIENT_ERRORS = {"unsupported_image": 415, "hear_bad_audio": 422}
+_RUN_ID = re.compile(r"(?:redact|meeting)-[0-9a-f]{12}")
 
 
 class KnownEntity(BaseModel):
@@ -111,6 +114,17 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "models": models,
             "hear": hear_status,
         })
+
+    @app.get("/receipts/{run_id}")
+    def get_receipt(run_id: str) -> JSONResponse:
+        """Read a receipt back. Ids are checked against a strict pattern so a request can
+        never reach a file outside the receipts folder."""
+        if not _RUN_ID.fullmatch(run_id):
+            return JSONResponse(status_code=400, content={"status": "error", "error": "bad_id"})
+        path = Path(settings.runs_dir) / f"{run_id}.json"
+        if not path.is_file():
+            return JSONResponse(status_code=404, content={"status": "error", "error": "not_found"})
+        return JSONResponse(content=json.loads(path.read_text(encoding="utf-8")))
 
     @app.post("/redact")
     def redact(req: RedactRequest) -> JSONResponse:

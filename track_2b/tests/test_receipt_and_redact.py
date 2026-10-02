@@ -44,6 +44,18 @@ def test_redact_masks_rules_and_model_spans_and_writes_receipt(tmp_path):
         assert secret not in r.text
 
 
+def test_receipt_can_be_read_back_by_id_and_ids_cannot_escape_the_folder(tmp_path):
+    client = make_client(tmp_path)
+    run_id = client.post("/redact", json={"text": SECRET_TEXT}).json()["receipt_id"]
+    r = client.get(f"/receipts/{run_id}")
+    assert r.status_code == 200
+    assert r.json()["run_id"] == run_id
+    assert [o["step"] for o in r.json()["outgoing"]][:1] == ["detect"]
+    assert client.get("/receipts/redact-000000000000").status_code == 404
+    assert client.get("/receipts/..%2F..%2Fetc%2Fpasswd").status_code in (400, 404)
+    assert client.get("/receipts/bad id!").status_code == 400
+
+
 def test_redact_with_known_entities_masks_them(tmp_path):
     r = make_client(tmp_path).post(
         "/redact", json={"text": "Grüess a d'Nadine.", "known_entities": [{"text": "Nadine", "type": "PERSON"}]}
