@@ -96,3 +96,42 @@ def detect_persons(text: str, llm: ChatModel, model: str | None = None) -> list[
         if isinstance(name, str):
             spans.extend(_locate(text, name, "PERSON"))
     return spans
+
+
+# Wording exactly as measured on 02.10.2026. A variant that also asked for the type of each
+# name ({"text","typ"}) shifted the blind spots on the same slide (found Swisscom, missed
+# Nordlicht and Winterthur), so the plain list is kept and found names are typed OTHER.
+# Changes to this prompt need a fresh measurement on the test set (make eval), not one slide.
+NAMES_PROMPT = (
+    "Nenne im folgenden Text ALLE Namen von Firmen, Organisationen, Projekten und Orten "
+    "(Städte, Gemeinden, Quartiere, Filialen). Gib sie genau so zurück, wie sie im Text stehen, "
+    "ohne Artikel. Allgemeine Wörter wie Kunde, Team, Bank oder Projekt allein sind keine Namen. "
+    'Antworte NUR mit JSON: {"namen":["<wie im Text>"]}\n\nTEXT:\n'
+)
+
+# Words a model sometimes returns as "names" although they name nothing specific.
+GENERIC = {"kunde", "kunden", "team", "bank", "projekt", "firma", "filiale", "büro", "buero",
+           "firmen", "unternehmen", "gemeinde", "stadt", "kanton", "abteilung", "verwaltung"}
+
+
+def detect_names(text: str, llm: ChatModel, model: str | None = None) -> list[Span]:
+    """Narrow pass for organisations, projects and places. Measured 02.10.2026 on a slide:
+    the broad pass on 70B left out "Nordlicht" and "Winterthur" (2 of 2 runs); this pass
+    on 70B found both (3 of 3) but missed "Swisscom", which the broad pass caught. The
+    layers have different blind spots, which is why both run."""
+    data = extract_json(llm.chat([{"role": "user", "content": NAMES_PROMPT + text}], model=model,
+                                 step="detect_names"))
+    items = data.get("namen", []) if isinstance(data, dict) else []
+    spans: list[Span] = []
+    for item in items:
+        if isinstance(item, str):
+            needle, span_type = item, "OTHER"
+        elif isinstance(item, dict):
+            needle = str(item.get("text", ""))
+            span_type = TYPE_MAP.get(str(item.get("typ", "")).strip().upper(), "OTHER")
+        else:
+            continue
+        if needle.strip().casefold() in GENERIC:
+            continue
+        spans.extend(_locate(text, needle, span_type))
+    return spans

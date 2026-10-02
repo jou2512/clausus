@@ -76,9 +76,13 @@ class Vault:
 
     # --- masking ----------------------------------------------------------------------------
     def pseudonymize(self, text: str, spans: list[Span]) -> str:
+        """Number placeholders in reading order, then replace from the end so the
+        offsets of earlier spans stay valid."""
+        ordered = sorted(spans, key=lambda s: s.start)
+        tokens = [self.token_for(s.text, s.type) for s in ordered]
         out = text
-        for s in sorted(spans, key=lambda s: s.start, reverse=True):
-            out = out[:s.start] + self.token_for(s.text, s.type) + out[s.end:]
+        for s, token in reversed(list(zip(ordered, tokens, strict=True))):
+            out = out[:s.start] + token + out[s.end:]
         return self._sweep(out)
 
     def _sweep(self, text: str) -> str:

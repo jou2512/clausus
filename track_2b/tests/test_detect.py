@@ -71,19 +71,40 @@ class ScriptedLLM:
         return self.replies.pop(0)
 
 
+NO_NAMES = '{"namen":[]}'
+
+
 def test_person_pass_catches_first_name_the_main_pass_missed():
     text = "D'Nadine macht de Termin mit em Reto Ammann."
     llm = ScriptedLLM('{"stellen":[{"text":"Reto Ammann","typ":"PERSON"}]}',
-                      '{"personen":["Reto Ammann","Nadine"]}')
+                      '{"personen":["Reto Ammann","Nadine"]}', NO_NAMES)
     spans = detect(text, llm, person_model="fast-model")
     assert [(s.text, s.type) for s in spans] == [("Nadine", "PERSON"), ("Reto Ammann", "PERSON")]
-    assert llm.models == [None, "fast-model"]
+    assert llm.models == [None, "fast-model", None]
 
 
 def test_person_pass_ignores_names_not_in_text():
     text = "D'Nadine chunnt."
-    llm = ScriptedLLM('{"stellen":[]}', '{"personen":["Nadine","Erfundene Person"]}')
+    llm = ScriptedLLM('{"stellen":[]}', '{"personen":["Nadine","Erfundene Person"]}', NO_NAMES)
     assert [s.text for s in detect(text, llm)] == ["Nadine"]
+
+
+def test_names_pass_catches_place_and_project_the_broad_pass_missed():
+    """Measured 02.10.2026 on a slide: the broad pass on 70B left out "Nordlicht" and
+    "Winterthur" (2 of 2 runs); a narrow names pass on 70B found both (3 of 3)."""
+    text = "Kunde: Meier Bau AG, Winterthur • Pilot Nordlicht"
+    llm = ScriptedLLM('{"stellen":[{"text":"Meier Bau AG","typ":"FIRMA"}]}', '{"personen":[]}',
+                      '{"namen":[{"text":"Meier Bau AG","typ":"FIRMA"},{"text":"Winterthur","typ":"ORT"},'
+                      '"Nordlicht"]}')
+    spans = detect(text, llm)
+    assert [(s.text, s.type) for s in spans] == [
+        ("Meier Bau AG", "ORG"), ("Winterthur", "PLACE"), ("Nordlicht", "OTHER")]
+
+
+def test_names_pass_drops_generic_words_and_unknown_text():
+    text = "Das Team und die Bank treffen sich."
+    llm = ScriptedLLM('{"stellen":[]}', '{"personen":[]}', '{"namen":["Team","Bank","Erfunden AG"]}')
+    assert detect(text, llm) == []
 
 
 def test_detect_without_model_raises_rather_than_silently_skipping():

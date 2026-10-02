@@ -28,6 +28,8 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.IGNORECASE)),
     ("DATE", re.compile(rf"\b\d{{1,2}}\.\s?(?:{_MONTHS})(?:\s\d{{4}})?", re.IGNORECASE)),
     ("DATE", re.compile(r"\b(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])\.(?:\d{4}|\d{2})\b")),
+    # "Projekt Alpenblick", "des Projekts Nordlicht-2": a capitalised name right after the word
+    ("PROJECT", re.compile(r"\b(?:Projekt|Projekts|Project)\s+[A-ZÄÖÜ][\wäöüÄÖÜ-]*")),
 ]
 
 

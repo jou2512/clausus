@@ -4,10 +4,10 @@ import json
 import logging
 import uuid
 from collections import Counter
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -21,11 +21,14 @@ from clausus.llm import ApertusClient, ChatClient, Recorded
 from clausus.models import Span, SpanType
 from clausus.receipt import Outgoing, PlaceholderInfo, Receipt, write_receipt
 from clausus.router import Routes, route
+from clausus.see import IMAGE_TYPES, read_image
 from clausus.tasks.protocol import make_protocol
 from clausus.vault import Vault
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("clausus.app")
+
+_CLIENT_ERRORS = {"unsupported_image": 415, "hear_bad_audio": 422}
 
 
 class KnownEntity(BaseModel):
@@ -76,9 +79,11 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
     app = FastAPI(title="Clausus", version="0.1.0")
 
     def failure(e: ClaususError) -> JSONResponse:
-        log.warning("failed closed: %s", e.code)
-        return JSONResponse(status_code=503, content={"status": "down", "error": e.code,
-                                                      "detail": e.message})
+        """Input problems are 4xx, everything else 503. Either way nothing went further."""
+        status = _CLIENT_ERRORS.get(e.code, 503)
+        log.warning("failed closed: %s (%d)", e.code, status)
+        return JSONResponse(status_code=status, content={"status": "error" if status < 500 else "down",
+                                                         "error": e.code, "detail": e.message})
 
     def mask(text: str, known: list[KnownEntity], outgoing: list[Outgoing]) -> tuple[Vault, list[Span], str]:
         vault = Vault()
@@ -126,42 +131,82 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "receipt_id": run_id,
         })
 
-    @app.post("/meeting")
-    def meeting(req: MeetingRequest) -> JSONResponse:
-        """Transcript in, protocol with real names out. The protocol model only ever sees
-        the masked transcript; external only after a clean final check."""
-        outgoing: list[Outgoing] = []
-        notes: list[str] = []
-        try:
-            vault, spans, masked = mask(req.transcript, req.known_entities, outgoing)
-            decision = route("protocol", routes, external is not None)
-            notes.append(decision.reason)
-            destination = decision.destination
-            if destination == "external":
-                check = final_check(masked, Recorded(apertus, outgoing, "masked"))
-                if not check.clean:
-                    destination = "local"
-                    notes.append(f"final check found {len(check.leftovers)} leftover(s); kept local")
-            target = external if destination == "external" and external else apertus
-            protocol = make_protocol(masked, Recorded(target, outgoing, "masked"))
-        except ClaususError as e:
-            return failure(e)
-
+    def run_meeting(text: str, known: list[KnownEntity], outgoing: list[Outgoing],
+                    notes: list[str]) -> dict[str, Any]:
+        """Shared by /meeting and /meeting/upload. The protocol model only ever sees the
+        masked text; external only after a clean final check. Raises ClaususError."""
+        vault, spans, masked = mask(text, known, outgoing)
+        decision = route("protocol", routes, external is not None)
+        notes.append(decision.reason)
+        destination = decision.destination
+        if destination == "external":
+            check = final_check(masked, Recorded(apertus, outgoing, "masked"))
+            if not check.clean:
+                destination = "local"
+                notes.append(f"final check found {len(check.leftovers)} leftover(s); kept local")
+        target = external if destination == "external" and external else apertus
+        protocol = make_protocol(masked, Recorded(target, outgoing, "masked"))
 
         result = assemble(json.dumps(protocol, ensure_ascii=False), vault)
-        restored = _restore_deep(protocol, vault)
         run_id = f"meeting-{uuid.uuid4().hex[:12]}"
         write_receipt(Receipt(run_id=run_id, model=settings.llm_name, destination=destination,
                               placeholders=_placeholders(vault, spans), outgoing=outgoing,
                               notes=notes), settings.runs_dir)
         log.info("meeting ok: %d spans, destination %s, run %s", len(spans), destination, run_id)
-        return JSONResponse(content={
-            "protocol": restored,
+        return {
+            "protocol": _restore_deep(protocol, vault),
             "destination": destination,
             "seen_by_model": masked,
             "warnings": {"invented": result.invented, "missing": result.missing},
             "notes": notes,
             "receipt_id": run_id,
-        })
+        }
+
+    @app.post("/meeting")
+    def meeting(req: MeetingRequest) -> JSONResponse:
+        """Transcript in, protocol with real names out."""
+        try:
+            return JSONResponse(content=run_meeting(req.transcript, req.known_entities, [], []))
+        except ClaususError as e:
+            return failure(e)
+
+    @app.post("/meeting/upload")
+    async def meeting_upload(
+        audio: Annotated[UploadFile | None, File()] = None,
+        images: Annotated[list[UploadFile] | None, File()] = None,
+        transcript: Annotated[str, Form()] = "",
+        known_entities: Annotated[str, Form()] = "[]",
+    ) -> JSONResponse:
+        """Audio and/or slides and/or text in one call. Hearing runs first and locally:
+        if it fails, no slide is sent anywhere either."""
+        images = images or []
+        if audio is None and not images and not transcript.strip():
+            return JSONResponse(status_code=400, content={"status": "error", "error": "empty",
+                                                          "detail": "Send audio, images or a transcript."})
+        try:
+            known = [KnownEntity(**k) for k in json.loads(known_entities or "[]")]
+        except (ValueError, TypeError) as e:
+            return JSONResponse(status_code=400, content={"status": "error", "error": "bad_known_entities",
+                                                          "detail": str(e)})
+        outgoing: list[Outgoing] = []
+        notes: list[str] = []
+        try:
+            for img in images:  # validate every image before anything is sent
+                if (img.content_type or "") not in IMAGE_TYPES:
+                    raise ClaususError("unsupported_image", f"Unsupported image type: {img.content_type}.")
+            spoken = ""
+            if audio is not None:
+                heard = hear.transcribe(await audio.read(), audio.filename or "audio")
+                spoken = heard.text
+                notes.append(f"audio transcribed locally ({heard.duration_s:.0f} s on {heard.device})")
+            slides = [read_image(await img.read(), img.content_type or "",
+                                 Recorded(apertus, outgoing, "original")) for img in images]
+            parts = [p for p in (transcript.strip(), spoken) if p]
+            if slides:
+                parts.append("Folien:\n" + "\n\n".join(slides))
+            result = run_meeting("\n\n".join(parts), known, outgoing, notes)
+        except ClaususError as e:
+            return failure(e)
+        return JSONResponse(content={"transcript": spoken, "slides": slides, **result})
 
     return app

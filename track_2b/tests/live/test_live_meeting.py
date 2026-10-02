@@ -36,5 +36,5 @@ def test_live_meeting_protocol_never_shows_originals_to_the_protocol_model(tmp_p
     assert body["protocol"]["zusammenfassung"].strip()
     assert body["warnings"]["invented"] == []
     receipt = json.loads((tmp_path / f"{body['receipt_id']}.json").read_text(encoding="utf-8"))
-    assert [o["step"] for o in receipt["outgoing"]] == ["detect", "detect_persons", "protocol"]
+    assert [o["step"] for o in receipt["outgoing"]] == ["detect", "detect_persons", "detect_names", "protocol"]
     assert not any(s in json.dumps(receipt, ensure_ascii=False) for s in SECRETS)

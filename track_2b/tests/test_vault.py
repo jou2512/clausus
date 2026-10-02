@@ -44,6 +44,13 @@ def test_pseudonymize_replaces_spans_and_sweeps_later_mentions():
     assert "runner" not in masked.lower()
 
 
+def test_placeholders_are_numbered_in_reading_order():
+    text = "Huber Treuhand AG zuerst, dann Meier Bau AG."
+    v = Vault()
+    masked = v.pseudonymize(text, spans_for(text, ("Huber Treuhand AG", "ORG"), ("Meier Bau AG", "ORG")))
+    assert masked == "[ORG_1] zuerst, dann [ORG_2]."
+
+
 def test_preloaded_known_entities_are_masked_even_without_detection():
     v = Vault()
     v.preload([("Sandra Keller", "PERSON")])

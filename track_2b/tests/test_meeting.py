@@ -11,6 +11,7 @@ TRANSCRIPT = ("Thomas Brunner von der Huber Treuhand AG will das Budget bis Ende
 DETECT = ('{"stellen":[{"text":"Thomas Brunner","typ":"PERSON"},'
           '{"text":"Huber Treuhand AG","typ":"FIRMA"}]}')
 PERSONS = '{"personen":["Thomas Brunner"]}'
+NAMES = '{"namen":[]}'
 PROTOCOL = ('{"zusammenfassung":"[PERSON_1] von [ORG_1] will Budget.",'
             '"entscheide":["Budget prüfen"],'
             '"pendenzen":[{"was":"Offerte","wer":"[PERSON_1]","bis":"Ende November"}]}')
@@ -36,7 +37,7 @@ def make(tmp_path, replies, env_extra=None, external_handler=None):
 
 
 def test_meeting_local_protocol_restores_names_and_records_every_outbound_call(tmp_path):
-    client, log = make(tmp_path, [DETECT, PERSONS, PROTOCOL])
+    client, log = make(tmp_path, [DETECT, PERSONS, NAMES, PROTOCOL])
     r = client.post("/meeting", json={"transcript": TRANSCRIPT})
     assert r.status_code == 200, r.text
     body = r.json()
@@ -44,18 +45,18 @@ def test_meeting_local_protocol_restores_names_and_records_every_outbound_call(t
     assert body["protocol"]["zusammenfassung"] == "Thomas Brunner von Huber Treuhand AG will Budget."
     assert body["protocol"]["pendenzen"][0]["wer"] == "Thomas Brunner"
     assert "Thomas" not in body["seen_by_model"] and "[PERSON_1]" in body["seen_by_model"]
-    # the protocol prompt (3rd call) got only the masked transcript
-    assert "Brunner" not in log[2] and "[ORG_1]" in log[2]
+    # the protocol prompt (4th call) got only the masked transcript
+    assert "Brunner" not in log[3] and "[ORG_1]" in log[3]
     receipt = json.loads((tmp_path / f"{body['receipt_id']}.json").read_text(encoding="utf-8"))
     kinds = [(o["step"], o["kind"]) for o in receipt["outgoing"]]
-    assert kinds == [("detect", "original"), ("detect_persons", "original"), ("protocol", "masked")]
+    assert kinds == [("detect", "original"), ("detect_persons", "original"), ("detect_names", "original"), ("protocol", "masked")]
     assert all(o["text"] is None for o in receipt["outgoing"] if o["kind"] == "original")
     assert "Brunner" not in json.dumps(receipt)
 
 
 def test_spoken_instruction_cannot_switch_the_router(tmp_path):
     called = []
-    client, _ = make(tmp_path, [DETECT, PERSONS, PROTOCOL],
+    client, _ = make(tmp_path, [DETECT, PERSONS, NAMES, PROTOCOL],
                      external_handler=lambda req: called.append(req) or httpx.Response(500))
     r = client.post("/meeting", json={"transcript": TRANSCRIPT})
     assert r.json()["destination"] == "local"
@@ -71,7 +72,7 @@ def test_external_route_sends_only_masked_text_after_clean_final_check(tmp_path)
         sent.append(json.loads(req.content)["messages"][0]["content"])
         return httpx.Response(200, json={"choices": [{"message": {"content": PROTOCOL}}]})
 
-    client, _ = make(tmp_path, [DETECT, PERSONS, '{"treffer": []}'],
+    client, _ = make(tmp_path, [DETECT, PERSONS, NAMES, '{"treffer": []}'],
                      env_extra={"CLAUSUS_ROUTES": str(routes), "EXTERNAL_BASE_URL": "https://ext.test/v1",
                                 "EXTERNAL_API_KEY": "x", "EXTERNAL_MODEL": "big"},
                      external_handler=external)
@@ -86,7 +87,7 @@ def test_dirty_final_check_forces_local_and_is_noted(tmp_path):
     routes.write_text("tasks:\n  protocol: external\n", encoding="utf-8")
     called = []
     transcript = TRANSCRIPT + " Grüess vom Bruno AG."
-    client, _ = make(tmp_path, [DETECT, PERSONS, '{"treffer": ["Bruno AG"]}', PROTOCOL],
+    client, _ = make(tmp_path, [DETECT, PERSONS, NAMES, '{"treffer": ["Bruno AG"]}', PROTOCOL],
                      env_extra={"CLAUSUS_ROUTES": str(routes), "EXTERNAL_BASE_URL": "https://ext.test/v1",
                                 "EXTERNAL_API_KEY": "x"},
                      external_handler=lambda req: called.append(req) or httpx.Response(500))
@@ -116,6 +117,6 @@ def test_detection_failure_sends_nothing_anywhere(tmp_path):
 
 def test_invented_placeholder_in_protocol_is_reported(tmp_path):
     bad = PROTOCOL.replace("Budget prüfen", "Mit [PERSON_9] reden")
-    client, _ = make(tmp_path, [DETECT, PERSONS, bad])
+    client, _ = make(tmp_path, [DETECT, PERSONS, NAMES, bad])
     body = client.post("/meeting", json={"transcript": TRANSCRIPT}).json()
     assert "[PERSON_9]" in body["warnings"]["invented"]
