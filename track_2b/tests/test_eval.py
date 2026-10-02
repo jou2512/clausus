@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from clausus.eval import Case, Secret, aggregate, load_cases, score_case
 
@@ -62,10 +63,16 @@ def test_aggregate_reports_rates_overall_per_type_and_per_style():
     assert rep["by_style"]["folie"]["leaked"] == 1
 
 
-def test_load_cases_reads_the_committed_test_set():
-    cases = load_cases("data/eval/cases.json")
+import pytest
+
+EVAL_DIR = Path(__file__).resolve().parent.parent / "data" / "eval"
+
+
+@pytest.mark.parametrize(("name", "n_secrets"), [("cases.json", 167), ("holdout.json", 191)])
+def test_load_cases_reads_the_committed_test_sets(name, n_secrets):
+    cases = load_cases(EVAL_DIR / name)
     assert len(cases) == 24
-    assert sum(len(c.secrets) for c in cases) == 167
+    assert sum(len(c.secrets) for c in cases) == n_secrets
     for c in cases:
         for s in c.secrets:
             assert s.text in c.text
