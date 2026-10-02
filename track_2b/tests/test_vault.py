@@ -25,6 +25,18 @@ def test_ambiguous_first_name_is_not_merged_into_either_person():
     assert v.token_for("Thomas", "PERSON") == "[PERSON_3]"
 
 
+def test_ambiguous_short_form_is_masked_with_its_own_placeholder_not_left_open():
+    """Benchmark 02.10.2026: with two Marcos, a lone "Marco" stayed in the text 3 of 3 runs.
+    Ambiguous means: do not merge it into either person. It must still be masked."""
+    text = "Marco Bernasconi und Marco Keller kommen. Marco bringt die Unterlagen, marco auch."
+    v = Vault()
+    spans = spans_for(text, ("Marco Bernasconi", "PERSON"), ("Marco Keller", "PERSON"))
+    masked = v.pseudonymize(text, spans)
+    assert "marco" not in masked.lower()
+    assert masked.startswith("[PERSON_1] und [PERSON_2] kommen. [PERSON_3] bringt")
+    assert masked.endswith("[PERSON_3] auch.")
+
+
 def test_company_suffix_variants_merge():
     v = Vault()
     assert v.token_for("Huber Treuhand AG", "ORG") == v.token_for("Huber Treuhand", "ORG")

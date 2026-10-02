@@ -20,6 +20,14 @@ def found(text):
         ("das kostet 45'000 Franken total", ("45'000 Franken", "AMOUNT")),
         ("Offerte bis am 15. Oktober schicken", ("15. Oktober", "DATE")),
         ("Steering am 07.10.2026 in Bern", ("07.10.2026", "DATE")),
+        ("Abgabe bis Ende November, sagt sie", ("Ende November", "DATE")),
+        ("mir bruuched das bis Änd Oktober", ("Änd Oktober", "DATE")),
+        ("Start anfangs Dezember geplant", ("anfangs Dezember", "DATE")),
+        ("Budget von 1,2 Millionen genehmigt", ("1,2 Millionen", "AMOUNT")),
+        ("Volumen 14,5 Mio. CHF im Jahr", ("14,5 Mio. CHF", "AMOUNT")),
+        ("rund 0.8 Millionen Franken", ("0.8 Millionen Franken", "AMOUNT")),
+        ("si bruuched füfedriissgtuusig Franke", ("füfedriissgtuusig Franke", "AMOUNT")),
+        ("das sind achtzgtuusig Stutz", ("achtzgtuusig Stutz", "AMOUNT")),
         ("Stand vom Projekt Alpenblick heute", ("Alpenblick", "PROJECT")),
         ("Stand des Projekts Nordlicht-2 heute", ("Nordlicht-2", "PROJECT")),
     ],
@@ -37,3 +45,8 @@ def test_offsets_point_at_the_exact_text():
 
 def test_plain_numbers_and_words_are_not_flagged():
     assert found("Wir haben 3 Punkte und 12 Teilnehmer, Version zwei.") == set()
+
+
+def test_vague_period_words_alone_and_non_amount_millions_are_not_flagged():
+    assert found("Am Ende des Meetings und Mitte der Woche.") == set()
+    assert found("Es gibt Millionen von Möglichkeiten.") == set()

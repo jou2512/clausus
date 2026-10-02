@@ -97,12 +97,25 @@ class Vault:
                         needles.setdefault(w, set()).add(e.token)
         for needle in sorted(needles, key=len, reverse=True):
             tokens = needles[needle]
-            if len(tokens) != 1:
-                continue  # ambiguous short form: do not guess which person
-            token = next(iter(tokens))
             pattern = re.compile(rf"(?<![\w\[]){re.escape(needle)}(?![\w\]])", re.IGNORECASE)
-            text = pattern.sub(token, text)
+            if len(tokens) == 1:
+                text = pattern.sub(next(iter(tokens)), text)
+            else:
+                # Ambiguous short form ("Marco" with two Marcos): never guess which person,
+                # but never leave it open either. It gets a placeholder of its own.
+                # Benchmark 02.10.2026: leaving it open leaked it in 3 of 3 runs.
+                text = pattern.sub(lambda m: self._ambiguous_token(m.group(0)), text)
         return text
+
+    def _ambiguous_token(self, word: str) -> str:
+        for e in self._entries:
+            if e.type == "PERSON" and any(v.casefold() == word.casefold() for v in e.variants):
+                return e.token
+        n = self._counters.get("PERSON", 0) + 1
+        self._counters["PERSON"] = n
+        entry = _Entry(token=f"[PERSON_{n}]", type="PERSON", variants=[word], keys=frozenset())
+        self._entries.append(entry)
+        return entry.token
 
     def restore(self, text: str) -> str:
         """Put originals back. If the answer already wrote the first word of the original
