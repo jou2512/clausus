@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import re
@@ -10,7 +11,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import httpx
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Header, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -19,6 +20,7 @@ from clausus.config import Settings
 from clausus.detect import detect
 from clausus.errors import ClaususError
 from clausus.final_check import final_check
+from clausus.guardrail import GuardrailRequest, GuardrailStore
 from clausus.hear import HearClient
 from clausus.llm import ApertusClient, ChatClient, Recorded
 from clausus.models import Span, SpanType
@@ -32,7 +34,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 log = logging.getLogger("clausus.app")
 
 _CLIENT_ERRORS = {"unsupported_image": 415, "hear_bad_audio": 422}
-_RUN_ID = re.compile(r"(?:redact|meeting)-[0-9a-f]{12}")
+_RUN_ID = re.compile(r"(?:redact|meeting|guardrail)-[0-9a-f]{12}")
 
 
 class KnownEntity(BaseModel):
@@ -70,12 +72,14 @@ def _placeholders(vault: Vault, spans: list[Span]) -> list[PlaceholderInfo]:
 
 def create_app(settings: Settings | None = None, http_client: httpx.Client | None = None,
                external_http: httpx.Client | None = None,
-               hear_http: httpx.Client | None = None) -> FastAPI:
+               hear_http: httpx.Client | None = None,
+               guardrail_store: GuardrailStore | None = None) -> FastAPI:
     """App factory. Without arguments it reads the environment and fails loudly
     if configuration is missing (run with `uvicorn --factory clausus.app:create_app`)."""
     settings = settings or Settings.from_env()
     apertus = ApertusClient(settings, http_client)
     hear = HearClient(settings.hear_url, hear_http)
+    store = guardrail_store if guardrail_store is not None else GuardrailStore()
     external = (ChatClient(settings.external_base_url, settings.external_api_key,
                            settings.external_model or settings.llm_name, "external", external_http)
                 if settings.external_configured else None)
@@ -234,5 +238,50 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         except ClaususError as e:
             return failure(e)
         return JSONResponse(content={"transcript": spoken, "slides": slides, **result})
+
+    @app.post("/beta/litellm_basic_guardrail_api")
+    def litellm_guardrail(req: GuardrailRequest,
+                          x_api_key: Annotated[str | None, Header()] = None,
+                          authorization: Annotated[str | None, Header()] = None) -> JSONResponse:
+        """LiteLLM calls this before (request) and after (response) every LLM call.
+        Request: mask, keep the vault in memory under litellm_call_id. Response: restore,
+        then forget the vault. If checking fails, the call is blocked, never let through."""
+        # LiteLLM sends `api_key` from its guardrail config as the x-api-key header
+        # (generic_guardrail_api.py, read 02.10.2026). Bearer is accepted for other callers.
+        given = x_api_key or (authorization or "").removeprefix("Bearer ")
+        if settings.guardrail_key and not hmac.compare_digest(given.encode(), settings.guardrail_key.encode()):
+            return JSONResponse(status_code=401, content={"action": "BLOCKED", "blocked_reason": "unauthorized"})
+        call_id = req.litellm_call_id or ""
+        if req.input_type == "response":
+            vault = store.pop(call_id) if call_id else None
+            if vault is None:
+                return JSONResponse(content={"action": "NONE"})
+            return JSONResponse(content={"action": "GUARDRAIL_INTERVENED",
+                                         "texts": [vault.restore(t) for t in req.texts]})
+        if req.images:
+            return JSONResponse(content={"action": "BLOCKED",
+                                         "blocked_reason": "Clausus does not check images through LiteLLM yet."})
+        outgoing: list[Outgoing] = []
+        vault = Vault()
+        spans: list[Span] = []
+        masked: list[str] = []
+        try:
+            for text in req.texts:
+                found = detect(text, Recorded(apertus, outgoing, "original"), person_model=settings.fast_model)
+                spans += found
+                masked.append(vault.pseudonymize(text, found))
+        except ClaususError as e:
+            log.warning("guardrail failed closed: %s", e.code)
+            return JSONResponse(content={"action": "BLOCKED",
+                                         "blocked_reason": f"Clausus could not check the content ({e.code})."})
+        if masked == req.texts:
+            return JSONResponse(content={"action": "NONE"})
+        if call_id:
+            store.put(call_id, vault)
+        write_receipt(Receipt(run_id=f"guardrail-{uuid.uuid4().hex[:12]}", model=settings.llm_name,
+                              destination="litellm", placeholders=_placeholders(vault, spans),
+                              outgoing=outgoing, notes=[f"litellm_call_id {call_id or 'none'}"]),
+                      settings.runs_dir)
+        return JSONResponse(content={"action": "GUARDRAIL_INTERVENED", "texts": masked})
 
     return app
