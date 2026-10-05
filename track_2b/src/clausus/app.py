@@ -21,7 +21,7 @@ from clausus.detect import detect
 from clausus.errors import ClaususError
 from clausus.final_check import final_check
 from clausus.guardrail import GuardrailRequest, GuardrailStore
-from clausus.hear import HearClient
+from clausus.hear import EndpointHearClient, HearClient
 from clausus.llm import ApertusClient, ChatClient, Recorded
 from clausus.models import Span, SpanType
 from clausus.receipt import Outgoing, PlaceholderInfo, Receipt, write_receipt
@@ -78,7 +78,9 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
     if configuration is missing (run with `uvicorn --factory clausus.app:create_app`)."""
     settings = settings or Settings.from_env()
     apertus = ApertusClient(settings, http_client)
-    hear = HearClient(settings.hear_url, hear_http)
+    hear: HearClient | EndpointHearClient = (
+        EndpointHearClient(settings.stt_base_url, settings.stt_api_key, settings.stt_model, hear_http)
+        if settings.stt_base_url else HearClient(settings.hear_url, hear_http))
     store = guardrail_store if guardrail_store is not None else GuardrailStore()
     external = (ChatClient(settings.external_base_url, settings.external_api_key,
                            settings.external_model or settings.llm_name, "external", external_http)
@@ -228,7 +230,11 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             if audio is not None:
                 heard = hear.transcribe(await audio.read(), audio.filename or "audio")
                 spoken = heard.text
-                notes.append(f"audio transcribed locally ({heard.duration_s:.0f} s on {heard.device})")
+                if heard.local:
+                    notes.append(f"audio transcribed locally ({heard.duration_s:.0f} s on {heard.device})")
+                else:  # audio carries originals: listed like any other call that leaves Clausus
+                    outgoing.append(Outgoing(step="hear", destination=heard.destination, kind="original",
+                                             model=heard.model))
             slides = [read_image(await img.read(), img.content_type or "",
                                  Recorded(apertus, outgoing, "original")) for img in images]
             parts = [p for p in (transcript.strip(), spoken) if p]

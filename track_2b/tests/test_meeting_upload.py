@@ -108,3 +108,27 @@ def test_unreadable_audio_is_422(tmp_path):
     r = client.post("/meeting/upload", files=[("audio", ("m.m4a", b"A", "audio/mp4"))])
     assert r.status_code == 422
     assert r.json()["error"] == "hear_bad_audio"
+
+
+def test_transcription_endpoint_is_recorded_as_original_leaving_the_house(tmp_path):
+    seen = {}
+
+    def stt(req):
+        seen["url"] = str(req.url)
+        return httpx.Response(200, json={"text": SPOKEN})
+
+    env = {"LLM_BASE_URL": "https://apertus.test/v1", "LLM_API_KEY": "k", "CLAUSUS_RUNS_DIR": str(tmp_path),
+           "STT_BASE_URL": "https://stt.example.ch/v1", "STT_MODEL": "whisper-x"}
+    replies = [DETECT, PERSONS, NAMES, PROTOCOL]
+    app = create_app(settings=Settings.from_env(env),
+                     http_client=httpx.Client(transport=httpx.MockTransport(
+                         lambda req: httpx.Response(200, json={"choices": [{"message": {"content": replies.pop(0)}}]}))),
+                     hear_http=httpx.Client(transport=httpx.MockTransport(stt)))
+    r = TestClient(app).post("/meeting/upload", files=[("audio", ("m.m4a", b"AUDIO", "audio/mp4"))])
+    assert r.status_code == 200, r.text
+    assert seen["url"] == "https://stt.example.ch/v1/audio/transcriptions"
+    rec = receipt(tmp_path, r.json())
+    first = rec["outgoing"][0]
+    assert (first["step"], first["kind"], first["destination"], first["model"]) == (
+        "hear", "original", "stt.example.ch", "whisper-x")
+    assert not any("locally" in n for n in rec["notes"])
