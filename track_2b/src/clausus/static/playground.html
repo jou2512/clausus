@@ -108,6 +108,17 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 .k.orig{color:var(--warn);background:var(--warn-soft)}.k.mask{color:var(--acc);background:var(--acc-soft)}
 .call small{color:var(--ink3);display:block}
 .hidden{display:none}
+.progress{margin:10px 20px 0;height:30px;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink2)}
+.progress.off{display:none}
+.bar{flex:1;height:4px;border-radius:2px;background:var(--line2);overflow:hidden;position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;width:35%;border-radius:2px;background:var(--acc);animation:slide 1.3s ease-in-out infinite}
+@keyframes slide{0%{left:-35%}100%{left:100%}}
+.progress b{color:var(--ink);font-weight:600}
+.progress .el{font-variant-numeric:tabular-nums;color:var(--ink3);min-width:44px;text-align:right}
+.col.busy .colbody{background:linear-gradient(90deg,transparent,var(--line2),transparent);background-size:200% 100%;animation:shimmer 1.4s linear infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.att a{color:var(--acc);text-decoration:none;font-size:13px;padding:0 2px}
+@media (prefers-reduced-motion: reduce){.bar i{animation:none;width:100%;opacity:.5}.col.busy .colbody{animation:none}}
 .pipe .t{font-variant-numeric:tabular-nums;color:var(--acc);font-weight:600;margin-left:4px}
 .pipe .t:empty{display:none}
 .mini{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px;font-size:11.5px;color:var(--ink2);margin-left:auto}
@@ -181,6 +192,7 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
     <span class="pstep"><b>4 · Restore</b> on this machine</span>
     <span class="pstep" id="t-totalwrap"><b>Total</b><span class="t" id="t-total"></span></span>
   </div>
+  <div class="progress off" id="progress"><div class="bar"><i></i></div><b id="pstage">Working…</b><span class="el" id="pel">0 s</span></div>
   <section class="stages">
     <div class="col">
       <div class="colhead"><span class="step">1</span><b>What you said</b><span class="where">→ read by detection</span></div>
@@ -241,7 +253,11 @@ let recorder = null, recStart = 0, recTimer = null;
 
 function renderAtts() {
   const parts = [];
-  if (att.audio) parts.push(`<span class="att">🎙 ${esc(att.audioName)}<button data-rm="audio" title="Remove">×</button></span>`);
+  if (att.audio) {
+    if (att.audioUrl) URL.revokeObjectURL(att.audioUrl);
+    att.audioUrl = URL.createObjectURL(att.audio);
+    parts.push(`<span class="att">🎙 ${esc(att.audioName)}<a href="${att.audioUrl}" download="${esc(att.audioName)}" title="Download this recording">⬇</a><button data-rm="audio" title="Remove">×</button></span>`);
+  }
   att.images.forEach((f, i) => parts.push(`<span class="att"><img src="${URL.createObjectURL(f)}" alt="">${esc(f.name)}<button data-rm="img${i}" title="Remove">×</button></span>`));
   $("#atts").innerHTML = parts.join("");
 }
@@ -369,18 +385,47 @@ async function answerAgain() {
   if (!lastRun) return;
   const btn = $("#b-again"); btn.disabled = true; btn.textContent = "↻ Answering…";
   cols[2].classList.add("busy");
+  startProgress("Asking " + $("#model").value + " again (no detection)…");
   try {
-    const r = await fetch("playground/answer", {method: "POST", headers: {"Content-Type": "application/json"},
-                                                body: JSON.stringify({run_id: lastRun, answer_model: $("#model").value})});
-    const b = await r.json();
-    if (!r.ok) throw new Error(b.detail || b.error || ("HTTP " + r.status));
+    const b = await callClausus("playground/answer", {method: "POST", headers: {"Content-Type": "application/json"},
+                                                      body: JSON.stringify({run_id: lastRun, answer_model: $("#model").value})});
     lastRun = b.receipt_id;
     showAnswer(b); showCalls(b, true);
     $("#t-total").textContent = secs(b.timings.total_ms) + " (answer only)";
     toast(`Answered again by ${b.answer_model} in ${secs(b.timings.answer_ms)}. Nothing was detected again.`);
   } catch (e) { toast("Could not answer again: " + e.message); }
+  stopProgress();
   cols[2].classList.remove("busy");
   btn.disabled = false; btn.textContent = "↻ Answer again";
+}
+let progTimer = null, progStart = 0;
+function startProgress(stage) {
+  progStart = performance.now(); $("#progress").classList.remove("off"); setStage(stage);
+  clearInterval(progTimer);
+  progTimer = setInterval(() => { $("#pel").textContent = Math.round((performance.now() - progStart) / 1000) + " s"; }, 250);
+}
+function setStage(stage) { $("#pstage").textContent = stage; }
+function stopProgress() { clearInterval(progTimer); $("#progress").classList.add("off"); }
+// The stage the server is most likely in, by elapsed time. The server does not stream progress,
+// so this is a guide, labelled as such, not a measurement.
+function guessStage(media) {
+  const s = (performance.now() - progStart) / 1000;
+  if (media && s < 8) return "Listening locally and reading slides…";
+  if (s < (media ? 14 : 6)) return "Detecting what is confidential (Apertus)…";
+  return "Masked. Waiting for the answering model…";
+}
+// fetch + JSON that says clearly when the reply did not come from Clausus at all
+async function callClausus(url, opts) {
+  let r;
+  try { r = await fetch(url, opts); }
+  catch (e) { throw new Error("Clausus is not reachable from this browser (" + e.message + ")."); }
+  const ct = r.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    throw new Error(`The link answered with something that is not Clausus (HTTP ${r.status}, ${ct || "no type"}). Is the link still pointing to Clausus?`);
+  }
+  const b = await r.json();
+  if (!r.ok) { const err = new Error(b.detail || b.error || ("HTTP " + r.status)); err.failedClosed = true; throw err; }
+  return b;
 }
 async function run() {
   const text = $("#input").value.trim();
@@ -399,28 +444,31 @@ async function run() {
   toast(media ? "Listening and reading slides, then finding what is confidential…" : "Finding what is confidential… (Apertus, about 10 to 30 s)");
   const answer_model = $("#model").value;
   let b;
+  startProgress(media ? "Listening locally and reading slides…" : "Detecting what is confidential (Apertus)…");
+  const stageTimer = setInterval(() => setStage(guessStage(media)), 1000);
   try {
-    let r;
     if (media) {
       const fd = new FormData();
       fd.append("text", text); fd.append("answer_model", answer_model);
       if (att.audio) fd.append("audio", att.audio, att.audioName);
       att.images.forEach(f => fd.append("images", f, f.name));
-      r = await fetch("playground/upload", {method: "POST", body: fd});
+      b = await callClausus("playground/upload", {method: "POST", body: fd});
     } else {
-      r = await fetch("playground/run", {method: "POST", headers: {"Content-Type": "application/json"},
-                                         body: JSON.stringify({text, answer_model})});
+      b = await callClausus("playground/run", {method: "POST", headers: {"Content-Type": "application/json"},
+                                               body: JSON.stringify({text, answer_model})});
     }
-    b = await r.json();
-    if (!r.ok) throw new Error(b.detail || b.error || ("HTTP " + r.status));
   } catch (e) {
+    clearInterval(stageTimer); stopProgress();
     cols.forEach(c => c.classList.remove("wait", "busy"));
-    $("#c2").innerHTML = `<span class="unknown">Stopped, nothing was sent on. ${esc(e.message)}</span>`;
+    $("#c2").innerHTML = e.failedClosed
+      ? `<span class="unknown">Clausus stopped and sent nothing on to the answering model. ${esc(e.message)}</span>`
+      : `<span class="unknown">${esc(e.message)}</span>`;
     setRun(false); return;
   }
+  clearInterval(stageTimer); stopProgress();
   byTok = Object.fromEntries(b.vault.map(v => [v.token, v]));
   const src = [];
-  if (b.transcript !== undefined && att.audio) src.push(`<span class="chip">🎙 ${esc(att.audioName)} · heard ${b.transcript ? "locally" : "nothing"}</span>`);
+  if (b.transcript !== undefined && att.audio) src.push(`<span class="chip">🎙 ${esc(att.audioName)} · heard ${b.transcript ? "locally" : "nothing"} · <a href="${att.audioUrl}" download="${esc(att.audioName)}">download</a></span>`);
   (b.slides || []).forEach((_, i) => src.push(`<span class="chip">▣ ${esc(att.images[i]?.name || "slide")} · read</span>`));
   $("#srcs").innerHTML = src.join("");
   $("#c1").innerHTML = b.original_segments.map(s => s.token ? mark(s.token, s.text, false) : esc(s.text))
