@@ -12,7 +12,7 @@ from typing import Annotated, Any
 
 import httpx
 from fastapi import FastAPI, File, Form, Header, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from clausus.assemble import assemble
@@ -45,6 +45,52 @@ class KnownEntity(BaseModel):
 class RedactRequest(BaseModel):
     text: str = Field(min_length=1)
     known_entities: list[KnownEntity] = Field(default_factory=list)
+
+
+class PlaygroundRequest(BaseModel):
+    text: str = Field(min_length=1)
+    instruction: str = ""
+
+
+_TOKEN = re.compile(r"\[[A-Z]+_\d+\]")
+_ANY_PLACEHOLDER = re.compile(r"\[[A-ZÄÖÜ][A-ZÄÖÜ_ ]+(?:_\d+)?\]")
+_PAGE = Path(__file__).parent / "static" / "playground.html"
+_DEFAULT_INSTRUCTION = ("Antworte hilfreich und knapp auf die Nachricht. Platzhalter in eckigen Klammern "
+                        "wie [PERSON_1] stehen für vertrauliche Angaben: übernimm sie wörtlich und "
+                        "erfinde keine neuen.")
+
+
+def split_original(original: str, masked: str) -> list[dict[str, str | None]]:
+    """Align the masked text back to what was really said, so the playground can show
+    which words became which placeholder ("Brunner" stays "Brunner", not the canonical name).
+    The literal text between placeholders is identical in both; the gaps are the originals."""
+    parts = _TOKEN.split(masked)
+    tokens = _TOKEN.findall(masked)
+    segs: list[dict[str, str | None]] = []
+    pos = 0
+    if not original.startswith(parts[0]):
+        return [{"text": original, "token": None}]
+    if parts[0]:
+        segs.append({"text": parts[0], "token": None})
+    pos = len(parts[0])
+    for i, token in enumerate(tokens):
+        literal = parts[i + 1]
+        if i == len(tokens) - 1 and not literal:
+            end = len(original)
+        elif not literal:
+            end = pos  # adjacent placeholders: the next one takes the shared text
+        else:
+            end = original.find(literal, pos + 1) if i < len(tokens) - 1 else original.rfind(literal)
+            if end < pos:
+                return [{"text": original, "token": None}]
+        if end > pos:
+            segs.append({"text": original[pos:end], "token": token})
+        if literal:
+            segs.append({"text": literal, "token": None})
+        pos = end + len(literal)
+    if "".join(str(s["text"]) for s in segs) != original:
+        return [{"text": original, "token": None}]
+    return segs
 
 
 class MeetingRequest(BaseModel):
@@ -244,6 +290,41 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         except ClaususError as e:
             return failure(e)
         return JSONResponse(content={"transcript": spoken, "slides": slides, **result})
+
+    @app.get("/", response_class=HTMLResponse)
+    def playground_page() -> HTMLResponse:
+        return HTMLResponse(_PAGE.read_text(encoding="utf-8"))
+
+    @app.post("/playground/run")
+    def playground_run(req: PlaygroundRequest) -> JSONResponse:
+        """The three stages in one call: what you said, what the model sees, what comes back.
+        The vault table goes to the local page only, never to a model."""
+        outgoing: list[Outgoing] = []
+        try:
+            vault, spans, masked = mask(req.text, [], outgoing)
+            answer_masked = Recorded(apertus, outgoing, "masked").chat(
+                [{"role": "system", "content": req.instruction.strip() or _DEFAULT_INSTRUCTION},
+                 {"role": "user", "content": masked}], step="answer")
+        except ClaususError as e:
+            return failure(e)
+        invented = sorted({t for t in _ANY_PLACEHOLDER.findall(answer_masked) if not vault.knows(t)})
+        placeholders = _placeholders(vault, spans)
+        sources = {p.token: p.sources for p in placeholders}
+        run_id = f"redact-{uuid.uuid4().hex[:12]}"
+        write_receipt(Receipt(run_id=run_id, model=settings.llm_name, placeholders=placeholders,
+                              outgoing=outgoing, notes=["playground"]), settings.runs_dir)
+        log.info("playground ok: %d spans, run %s", len(spans), run_id)
+        return JSONResponse(content={
+            "original_segments": split_original(req.text, masked),
+            "masked": masked,
+            "answer_masked": answer_masked,
+            "answer": vault.restore(answer_masked),
+            "invented": invented,
+            "vault": [{"token": t, "type": ty, "original": o, "sources": sources.get(t, [])}
+                      for t, ty, o in vault.mapping()],
+            "outgoing": [o.model_dump() for o in outgoing],
+            "receipt_id": run_id,
+        })
 
     @app.post("/beta/litellm_basic_guardrail_api")
     def litellm_guardrail(req: GuardrailRequest,

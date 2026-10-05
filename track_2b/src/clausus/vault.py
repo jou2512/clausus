@@ -135,5 +135,9 @@ class Vault:
 
         return re.sub(r"(\b[\wäöüÄÖÜ]+\s+)?(\[[A-Z]+_\d+\])", put_back, text)
 
+    def mapping(self) -> list[tuple[str, str, str]]:
+        """(token, type, original) for the local playground. Never sent to a model."""
+        return [(e.token, e.type, e.canonical) for e in self._entries]
+
     def knows(self, token: str) -> bool:
         return any(e.token == token for e in self._entries)
