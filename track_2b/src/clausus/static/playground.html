@@ -103,6 +103,15 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 .k.orig{color:var(--warn);background:var(--warn-soft)}.k.mask{color:var(--acc);background:var(--acc-soft)}
 .call small{color:var(--ink3);display:block}
 .hidden{display:none}
+.sel select{border:0;background:none;color:var(--ink);font:inherit;outline:none;cursor:pointer}
+.sel select option{background:var(--panel);color:var(--ink)}
+.atts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.atts:empty{display:none}
+.att{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line);border-radius:6px;padding:3px 4px 3px 8px;color:var(--ink2)}
+.att button{border:0;background:none;color:var(--ink3);padding:0 4px;font-size:14px;line-height:1}
+.att img{width:22px;height:22px;object-fit:cover;border-radius:3px}
+.rec.on{background:var(--bad);color:#fff;border-color:var(--bad)}
+.srcs-row{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px}
 .pipe{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 20px 0;padding:9px 12px;border:1px dashed var(--line);border-radius:10px;font-size:12.5px;color:var(--ink2)}
 .pipe b{color:var(--ink);font-weight:600}
 .pipe .k{font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.04em;border-radius:4px;padding:1px 5px}
@@ -146,7 +155,7 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 <main>
   <header>
     <h1>Playground</h1>
-    <div class="sel"><small>Model</small><span id="model">…</span></div>
+    <label class="sel"><small>Answer</small><select id="model"></select></label><div class="sel" title="Detection uses the measured setup: 70B broad, 8B persons, 70B names"><small>Detection</small>fixed, measured</div>
     <div class="sel"><small>Hear</small><span id="hearsel">…</span></div>
     <div class="status" id="status"><span class="dot" id="sdot"></span><span id="stext">checking…</span></div>
     <button class="iconbtn" id="theme" title="Light / dark">◐</button>
@@ -164,6 +173,7 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
   <section class="stages">
     <div class="col">
       <div class="colhead"><span class="step">1</span><b>What you said</b><span class="where">→ read by detection</span></div>
+      <div class="srcs-row" id="srcs"></div>
       <div class="colbody" id="c1"></div>
     </div>
     <div class="col mid">
@@ -179,6 +189,8 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 
   <div class="composer">
     <textarea id="input" placeholder="Type or paste anything confidential, e.g. a meeting note, and ask something about it."></textarea>
+    <div class="atts" id="atts"></div>
+    <input type="file" id="file" accept="audio/*,image/png,image/jpeg,image/webp,image/gif" multiple hidden>
     <div class="crow">
       <button class="tool rec" id="b-rec"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4" fill="currentColor"/></svg>Record</button>
       <button class="tool" id="b-up"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 10.5V2.5M5 5.5l3-3 3 3M2.5 10.5v3h11v-3"/></svg>Audio or slide</button>
@@ -212,6 +224,54 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", 
 const SAMPLE = "Also, kurz zum Stand: Thomas Brunner von der Huber Treuhand AG will das Projekt Nordlicht bis Ende November abschliessen. Budget sind CHF 180'000, Freigabe durch Claudia Meier. Rückfragen bitte an 079 482 17 63 oder t.brunner@huber-treuhand.ch. Der Workshop findet in Winterthur statt.\n\nSchreib mir daraus drei kurze Pendenzen mit Zuständigkeit.";
 const TOK = /(\[[A-ZÄÖÜ][A-ZÄÖÜ_ ]+(?:_\d+)?\])/;
 let byTok = {}, pinned = null;
+const att = {audio: null, audioName: "", images: []};
+let recorder = null, recStart = 0, recTimer = null;
+
+function renderAtts() {
+  const parts = [];
+  if (att.audio) parts.push(`<span class="att">🎙 ${esc(att.audioName)}<button data-rm="audio" title="Remove">×</button></span>`);
+  att.images.forEach((f, i) => parts.push(`<span class="att"><img src="${URL.createObjectURL(f)}" alt="">${esc(f.name)}<button data-rm="img${i}" title="Remove">×</button></span>`));
+  $("#atts").innerHTML = parts.join("");
+}
+function addFiles(files) {
+  for (const f of files) {
+    if (f.type.startsWith("audio/") || f.type.startsWith("video/")) { att.audio = f; att.audioName = f.name; }
+    else if (/^image\/(png|jpeg|webp|gif)$/.test(f.type)) att.images.push(f);
+    else toast(`${f.name}: only audio or PNG/JPEG/WebP/GIF slides.`);
+  }
+  renderAtts();
+}
+async function toggleRecord() {
+  const b = $("#b-rec");
+  if (recorder) { recorder.stop(); return; }
+  if (!navigator.mediaDevices?.getUserMedia) { toast("This browser cannot record here. Upload a file instead."); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
+  catch (e) { toast("Microphone blocked: " + e.message); return; }
+  const chunks = [];
+  recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+  recorder.onstop = () => {
+    stream.getTracks().forEach(tr => tr.stop());
+    const type = recorder.mimeType || "audio/webm";
+    const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+    att.audio = new Blob(chunks, {type});
+    att.audioName = `recording-${Math.round((Date.now() - recStart) / 1000)}s.${ext}`;
+    recorder = null; clearInterval(recTimer);
+    b.classList.remove("on"); b.lastChild.textContent = "Record";
+    renderAtts(); toast("Recording added. Press Run.");
+  };
+  recorder.start(); recStart = Date.now();
+  b.classList.add("on");
+  recTimer = setInterval(() => { b.lastChild.textContent = `Stop · ${Math.round((Date.now() - recStart) / 1000)} s`; }, 500);
+  b.lastChild.textContent = "Stop · 0 s";
+}
+async function loadConfig() {
+  try {
+    const c = await (await fetch("playground/config")).json();
+    $("#model").innerHTML = c.answer_models.map(m => `<option>${esc(m)}</option>`).join("");
+  } catch (e) { $("#model").innerHTML = "<option>apertus-v1.5-70b</option>"; }
+}
 
 const mark = (tok, label, asToken) => {
   const v = byTok[tok];
@@ -232,13 +292,12 @@ async function health() {
   try {
     const h = await (await fetch("health")).json();
     const ok = h.apertus === "ok";
-    $("#model").textContent = h.model || "?";
     $("#hearsel").textContent = h.hear === "ok" ? "ready" : (h.hear || "?");
     $("#stext").textContent = `Apertus ${ok ? "ok" : (h.apertus || "down")} · Hear ${h.hear || "?"}`;
     $("#sdot").style.background = ok ? "var(--acc)" : "var(--bad)";
-    $("#dest").textContent = "→ " + (h.model || "Apertus");
+    $("#dest").textContent = "→ " + ($("#model").value || h.model || "Apertus");
     $("#p-detect").textContent = "Apertus (" + (h.model || "?") + ")";
-    $("#p-answer").textContent = "Apertus (" + (h.model || "?") + "), in this demo the same model";
+    $("#p-answer").textContent = ($("#model").value || h.model || "?") + " (Apertus, in this demo)";
   } catch (e) {
     $("#stext").textContent = "Clausus not reachable";
     $("#sdot").style.background = "var(--bad)";
@@ -247,7 +306,8 @@ async function health() {
 
 async function run() {
   const text = $("#input").value.trim();
-  if (!text) { toast("Type something first, or tap “Try the sample”."); return; }
+  const media = att.audio || att.images.length;
+  if (!text && !media) { toast("Type something, record, or add a file. Or tap “Try the sample”."); return; }
   setRun(true);
   pinned = null; cold();
   cols.forEach(c => c.classList.add("wait"));
@@ -255,11 +315,22 @@ async function run() {
   cols[0].classList.remove("wait"); cols[0].classList.add("busy");
   $("#c1").innerHTML = esc(text).replace(/\n/g, "<br>");
   $("#c2").innerHTML = ""; $("#c3").innerHTML = "";
-  toast("Finding what is confidential… (Apertus, about 10 to 30 s)");
+  $("#srcs").innerHTML = "";
+  toast(media ? "Listening and reading slides, then finding what is confidential…" : "Finding what is confidential… (Apertus, about 10 to 30 s)");
+  const answer_model = $("#model").value;
   let b;
   try {
-    const r = await fetch("playground/run", {method: "POST", headers: {"Content-Type": "application/json"},
-                                             body: JSON.stringify({text})});
+    let r;
+    if (media) {
+      const fd = new FormData();
+      fd.append("text", text); fd.append("answer_model", answer_model);
+      if (att.audio) fd.append("audio", att.audio, att.audioName);
+      att.images.forEach(f => fd.append("images", f, f.name));
+      r = await fetch("playground/upload", {method: "POST", body: fd});
+    } else {
+      r = await fetch("playground/run", {method: "POST", headers: {"Content-Type": "application/json"},
+                                         body: JSON.stringify({text, answer_model})});
+    }
     b = await r.json();
     if (!r.ok) throw new Error(b.detail || b.error || ("HTTP " + r.status));
   } catch (e) {
@@ -268,6 +339,10 @@ async function run() {
     setRun(false); return;
   }
   byTok = Object.fromEntries(b.vault.map(v => [v.token, v]));
+  const src = [];
+  if (b.transcript !== undefined && att.audio) src.push(`<span class="chip">🎙 ${esc(att.audioName)} · heard ${b.transcript ? "locally" : "nothing"}</span>`);
+  (b.slides || []).forEach((_, i) => src.push(`<span class="chip">▣ ${esc(att.images[i]?.name || "slide")} · read</span>`));
+  $("#srcs").innerHTML = src.join("");
   $("#c1").innerHTML = b.original_segments.map(s => s.token ? mark(s.token, s.text, false) : esc(s.text))
     .join("").replace(/\n/g, "<br>");
   cols[0].classList.remove("busy");
@@ -279,7 +354,7 @@ async function run() {
   $("#c3").innerHTML = renderTokens(b.answer_masked, true);
   const notes = [];
   if (b.invented.length) notes.push(`⚠ The model wrote ${b.invented.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}, a placeholder Clausus never issued. Left as is and reported, never guessed.`);
-  if (b.missing.length) notes.push(`ℹ Apertus saw ${b.missing.map(t => mark(t, byTok[t] ? byTok[t].original : t, false)).join(", ")} but left ${b.missing.length === 1 ? "it" : "them"} out of the answer. Nothing leaked, the model just dropped ${b.missing.length === 1 ? "it" : "them"}.`);
+  if (b.missing.length) notes.push(`ℹ Not used in the answer (${b.missing.length}): ${b.missing.map(t => mark(t, byTok[t] ? byTok[t].original : t, false)).join(", ")}. The model saw ${b.missing.length === 1 ? "it as a placeholder" : "them as placeholders"} and left ${b.missing.length === 1 ? "it" : "them"} out. Check the answer if ${b.missing.length === 1 ? "it" : "one of them"} mattered.`);
   if (notes.length) { $("#flag").innerHTML = notes.join("<br><br>"); $("#flag").style.display = ""; }
   $("#map").innerHTML = b.vault.map(v => `<tr data-k="${esc(v.token)}"><td><span class="e tok ${v.type}">${esc(v.token)}</span></td><td class="orig"><span class="o">${esc(v.original)}</span></td><td class="srcs">${esc((v.sources || []).join(", "))}</td></tr>`).join("");
   const rules = b.vault.filter(v => (v.sources || []).includes("rule")).length;
@@ -300,10 +375,27 @@ document.addEventListener("click", e => {
   if (n && pinned !== n.dataset.k) { pinned = n.dataset.k; hot(pinned); } else pinned = null;
 });
 $("#b-run").onclick = () => run().catch(e => { setRun(false); cols.forEach(c => c.classList.remove("wait", "busy")); toast("Something went wrong: " + e.message); });
-$("#b-sample").onclick = () => { $("#input").value = SAMPLE; $("#b-run").click(); };
+$("#b-sample").onclick = async () => {
+  $("#input").value = SAMPLE;
+  att.audio = null; att.images = [];
+  try {
+    const blob = await (await fetch("playground/sample-slide.png")).blob();
+    att.images.push(new File([blob], "sample-slide.png", {type: "image/png"}));
+  } catch (e) { /* text only */ }
+  renderAtts(); $("#b-run").click();
+};
 document.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "Enter") $("#b-run").click(); });
-$("#b-rec").onclick = () => toast("Recording comes next. For now: type or paste text.");
-$("#b-up").onclick = () => toast("Audio and slide upload comes next. For now: type or paste text.");
+$("#b-rec").onclick = toggleRecord;
+$("#b-up").onclick = () => $("#file").click();
+$("#file").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+$("#atts").onclick = e => {
+  const k = e.target.dataset.rm; if (!k) return;
+  if (k === "audio") { att.audio = null; att.audioName = ""; } else att.images.splice(+k.slice(3), 1);
+  renderAtts();
+};
+document.querySelector(".composer").addEventListener("dragover", e => e.preventDefault());
+document.querySelector(".composer").addEventListener("drop", e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
+$("#model").onchange = () => { $("#dest").textContent = "→ " + $("#model").value; $("#p-answer").textContent = $("#model").value + " (Apertus, in this demo)"; };
 document.querySelectorAll("nav .navi").forEach(b => b.onclick = () => toast("Only the Playground exists yet."));
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
@@ -323,7 +415,7 @@ $("#theme").onclick = () => {
 };
 $("#c1").innerHTML = '<span style="color:var(--ink3)">Type below and press Run, or tap “Try the sample”.</span>';
 $("#vnote").textContent = "Empty until the first run.";
-health();
+loadConfig().then(health);
 
 </script>
 </body>

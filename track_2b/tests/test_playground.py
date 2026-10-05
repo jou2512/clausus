@@ -85,3 +85,76 @@ def test_playground_reports_placeholders_the_model_dropped(tmp_path):
     client, _ = make(tmp_path, [DETECT, '{"personen":[]}', '{"namen":[]}', "Ruf [PERSON_1] an."])
     b = client.post("/playground/run", json={"text": TEXT}).json()
     assert b["missing"] == ["[ORG_1]", "[AMOUNT_1]"]
+
+
+# --- audio, slides and the answer model (05.10.) ---
+
+def make_full(tmp_path, replies, hear_text="Anna Keller ruft morgen an."):
+    seen = []
+
+    def apertus(req):
+        body = json.loads(req.content)
+        seen.append(body)
+        return httpx.Response(200, json={"choices": [{"message": {"content": replies.pop(0)}}]})
+
+    def hear(req):
+        return httpx.Response(200, json={"text": hear_text, "duration_s": 3.0, "device": "cuda"})
+
+    env = {"LLM_BASE_URL": "https://a.test/v1", "LLM_API_KEY": "k", "CLAUSUS_RUNS_DIR": str(tmp_path)}
+    app = create_app(settings=Settings.from_env(env),
+                     http_client=httpx.Client(transport=httpx.MockTransport(apertus)),
+                     hear_http=httpx.Client(transport=httpx.MockTransport(hear)))
+    return TestClient(app), seen
+
+
+PERSON_ONLY = '{"stellen":[{"text":"Anna Keller","typ":"PERSON"}]}'
+
+
+def test_upload_with_audio_and_slide_joins_everything_before_masking(tmp_path):
+    client, seen = make_full(tmp_path, ["Projekt Nordlicht – Kunde: Meier Bau AG", PERSON_ONLY,
+                                        '{"personen":[]}', '{"namen":[]}', "Ruf [PERSON_1] an."])
+    r = client.post("/playground/upload", data={"text": "Bitte zusammenfassen."},
+                    files=[("audio", ("rec.webm", b"AUDIO", "audio/webm")),
+                           ("images", ("s.png", b"\x89PNG", "image/png"))])
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["transcript"] == "Anna Keller ruft morgen an."
+    assert b["slides"] == ["Projekt Nordlicht – Kunde: Meier Bau AG"]
+    assert "[PERSON_1]" in b["masked"] and "Ralph" not in b["masked"]
+    assert "Ralph" not in json.dumps(seen[-1]["messages"])  # answer call: placeholders only
+    assert b["answer"] == "Ruf Anna Keller an."
+    assert [o["step"] for o in b["outgoing"]][:2] == ["see", "detect"]
+
+
+def test_upload_needs_something(tmp_path):
+    client, _ = make_full(tmp_path, [])
+    assert client.post("/playground/upload", data={"text": " "}).status_code == 400
+
+
+def test_unsupported_image_is_rejected_before_anything_is_sent(tmp_path):
+    client, seen = make_full(tmp_path, [])
+    r = client.post("/playground/upload", data={"text": "x"},
+                    files=[("images", ("a.pdf", b"%PDF", "application/pdf"))])
+    assert r.status_code == 415 and seen == []
+
+
+def test_answer_model_is_used_for_the_answer_only(tmp_path):
+    client, seen = make_full(tmp_path, [PERSON_ONLY, '{"personen":[]}', '{"namen":[]}', "ok [PERSON_1]"])
+    r = client.post("/playground/run", json={"text": "Anna Keller ruft an.", "answer_model": "apertus-v1.5-8b"})
+    assert r.status_code == 200, r.text
+    assert seen[-1]["model"] == "apertus-v1.5-8b"
+    assert seen[0]["model"] == "apertus-v1.5-70b"  # detection stays as measured
+
+
+def test_unknown_answer_model_is_refused(tmp_path):
+    client, seen = make_full(tmp_path, [])
+    r = client.post("/playground/run", json={"text": "x", "answer_model": "gpt-4o"})
+    assert r.status_code == 400 and seen == []
+
+
+def test_playground_config_lists_answer_models_and_fixed_detection(tmp_path):
+    client, _ = make_full(tmp_path, [])
+    c = client.get("/playground/config").json()
+    assert c["answer_models"] == ["apertus-v1.5-70b", "apertus-v1.5-8b"]
+    assert c["detection"] == ["apertus-v1.5-70b", "apertus-v1.5-8b"]
+    assert client.get("/playground/sample-slide.png").headers["content-type"] == "image/png"

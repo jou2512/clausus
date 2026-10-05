@@ -12,7 +12,7 @@ from typing import Annotated, Any
 
 import httpx
 from fastapi import FastAPI, File, Form, Header, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from clausus.assemble import assemble
@@ -50,11 +50,13 @@ class RedactRequest(BaseModel):
 class PlaygroundRequest(BaseModel):
     text: str = Field(min_length=1)
     instruction: str = ""
+    answer_model: str = ""
 
 
 _TOKEN = re.compile(r"\[[A-Z]+_\d+\]")
 _ANY_PLACEHOLDER = re.compile(r"\[[A-ZÄÖÜ][A-ZÄÖÜ_ ]+(?:_\d+)?\]")
 _PAGE = Path(__file__).parent / "static" / "playground.html"
+_SAMPLE_SLIDE = Path(__file__).parent / "static" / "sample-slide.png"
 _DEFAULT_INSTRUCTION = ("Antworte hilfreich und knapp auf die Nachricht. Platzhalter in eckigen Klammern "
                         "wie [PERSON_1] stehen für vertrauliche Angaben: übernimm sie wörtlich und "
                         "erfinde keine neuen.")
@@ -295,30 +297,51 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
     def playground_page() -> HTMLResponse:
         return HTMLResponse(_PAGE.read_text(encoding="utf-8"))
 
-    @app.post("/playground/run")
-    def playground_run(req: PlaygroundRequest) -> JSONResponse:
-        """The three stages in one call: what you said, what the model sees, what comes back.
-        The vault table goes to the local page only, never to a model."""
-        outgoing: list[Outgoing] = []
-        try:
-            vault, spans, masked = mask(req.text, [], outgoing)
-            answer_masked = Recorded(apertus, outgoing, "masked").chat(
-                [{"role": "system", "content": req.instruction.strip() or _DEFAULT_INSTRUCTION},
-                 {"role": "user", "content": masked}], step="answer")
-        except ClaususError as e:
-            return failure(e)
+    # Detection stays as measured (benchmark); only the answering model is a choice.
+    answer_models = list(dict.fromkeys([settings.llm_name, settings.fast_model]))
+
+    @app.get("/playground/config")
+    def playground_config() -> JSONResponse:
+        return JSONResponse(content={
+            "answer_models": answer_models,
+            "detection": list(dict.fromkeys([settings.llm_name, settings.fast_model])),
+            "hear": "endpoint" if settings.stt_base_url else "local",
+        })
+
+    @app.get("/playground/sample-slide.png")
+    def sample_slide() -> FileResponse:
+        return FileResponse(_SAMPLE_SLIDE, media_type="image/png")
+
+    def bad_model(name: str) -> JSONResponse | None:
+        if name and name not in answer_models:
+            return JSONResponse(status_code=400, content={
+                "status": "error", "error": "unknown_model",
+                "detail": f"Answer model must be one of {', '.join(answer_models)}."})
+        return None
+
+    def playground(text: str, instruction: str, answer_model: str, outgoing: list[Outgoing],
+                   extra: dict[str, Any]) -> JSONResponse:
+        """The three stages in one call: what you said, what the answering model sees, what comes
+        back. The vault table goes to the local page only, never to a model. Raises ClaususError."""
+        vault, spans, masked = mask(text, [], outgoing)
+        answer_masked = Recorded(apertus, outgoing, "masked").chat(
+            [{"role": "system", "content": instruction.strip() or _DEFAULT_INSTRUCTION},
+             {"role": "user", "content": masked}], model=answer_model or None, step="answer")
         invented = sorted({t for t in _ANY_PLACEHOLDER.findall(answer_masked) if not vault.knows(t)})
         # Sent to the model but absent from its answer: the model dropped that person or fact.
         missing = [t for t in dict.fromkeys(_TOKEN.findall(masked)) if t not in answer_masked]
         placeholders = _placeholders(vault, spans)
-        sources = {p.token: p.sources for p in placeholders}
+        sources = {pl.token: pl.sources for pl in placeholders}
         run_id = f"redact-{uuid.uuid4().hex[:12]}"
         write_receipt(Receipt(run_id=run_id, model=settings.llm_name, placeholders=placeholders,
-                              outgoing=outgoing, notes=["playground"]), settings.runs_dir)
+                              outgoing=outgoing, notes=["playground", *extra.pop("notes", [])]),
+                      settings.runs_dir)
         log.info("playground ok: %d spans, run %s", len(spans), run_id)
         return JSONResponse(content={
-            "original_segments": split_original(req.text, masked),
+            **extra,
+            "original_segments": split_original(text, masked),
             "masked": masked,
+            "answer_model": answer_model or settings.llm_name,
             "answer_masked": answer_masked,
             "answer": vault.restore(answer_masked),
             "invented": invented,
@@ -328,6 +351,56 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "outgoing": [o.model_dump() for o in outgoing],
             "receipt_id": run_id,
         })
+
+    @app.post("/playground/run")
+    def playground_run(req: PlaygroundRequest) -> JSONResponse:
+        if (refused := bad_model(req.answer_model)) is not None:
+            return refused
+        try:
+            return playground(req.text, req.instruction, req.answer_model, [], {})
+        except ClaususError as e:
+            return failure(e)
+
+    @app.post("/playground/upload")
+    async def playground_upload(
+        audio: Annotated[UploadFile | None, File()] = None,
+        images: Annotated[list[UploadFile] | None, File()] = None,
+        text: Annotated[str, Form()] = "",
+        instruction: Annotated[str, Form()] = "",
+        answer_model: Annotated[str, Form()] = "",
+    ) -> JSONResponse:
+        """Typed text, a recording and slides together. Hearing runs first; if it fails,
+        no slide and no text is sent anywhere."""
+        images = images or []
+        if audio is None and not images and not text.strip():
+            return JSONResponse(status_code=400, content={"status": "error", "error": "empty",
+                                                          "detail": "Type text, record or add a file."})
+        if (refused := bad_model(answer_model)) is not None:
+            return refused
+        outgoing: list[Outgoing] = []
+        notes: list[str] = []
+        try:
+            for img in images:  # validate every image before anything is sent
+                if (img.content_type or "") not in IMAGE_TYPES:
+                    raise ClaususError("unsupported_image", f"Unsupported image type: {img.content_type}.")
+            spoken = ""
+            if audio is not None:
+                heard = hear.transcribe(await audio.read(), audio.filename or "audio")
+                spoken = heard.text
+                if heard.local:
+                    notes.append(f"audio transcribed locally ({heard.duration_s:.0f} s on {heard.device})")
+                else:
+                    outgoing.append(Outgoing(step="hear", destination=heard.destination, kind="original",
+                                             model=heard.model))
+            slides = [read_image(await img.read(), img.content_type or "",
+                                 Recorded(apertus, outgoing, "original")) for img in images]
+            parts = [x for x in (text.strip(), spoken) if x]
+            if slides:
+                parts.append("Folien:\n" + "\n\n".join(slides))
+            return playground("\n\n".join(parts), instruction, answer_model, outgoing,
+                              {"transcript": spoken, "slides": slides, "notes": notes})
+        except ClaususError as e:
+            return failure(e)
 
     @app.post("/beta/litellm_basic_guardrail_api")
     def litellm_guardrail(req: GuardrailRequest,
