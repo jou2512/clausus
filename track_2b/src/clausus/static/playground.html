@@ -262,10 +262,10 @@ async function run() {
   await sleep(900);
   cols[1].classList.remove("busy"); cols[2].classList.remove("wait");
   $("#c3").innerHTML = renderTokens(b.answer_masked, true);
-  if (b.invented.length) {
-    $("#flag").innerHTML = `⚠ The model wrote ${b.invented.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}, a placeholder Clausus never issued. Left as is and reported, never guessed.`;
-    $("#flag").style.display = "";
-  }
+  const notes = [];
+  if (b.invented.length) notes.push(`⚠ The model wrote ${b.invented.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}, a placeholder Clausus never issued. Left as is and reported, never guessed.`);
+  if (b.missing.length) notes.push(`ℹ Apertus saw ${b.missing.map(t => mark(t, byTok[t] ? byTok[t].original : t, false)).join(", ")} but left ${b.missing.length === 1 ? "it" : "them"} out of the answer. Nothing leaked, the model just dropped ${b.missing.length === 1 ? "it" : "them"}.`);
+  if (notes.length) { $("#flag").innerHTML = notes.join("<br><br>"); $("#flag").style.display = ""; }
   $("#map").innerHTML = b.vault.map(v => `<tr data-k="${esc(v.token)}"><td><span class="e tok ${v.type}">${esc(v.token)}</span></td><td class="orig"><span class="o">${esc(v.original)}</span></td><td class="srcs">${esc((v.sources || []).join(", "))}</td></tr>`).join("");
   const rules = b.vault.filter(v => (v.sources || []).includes("rule")).length;
   $("#vnote").textContent = `${b.vault.length} placeholders · ${rules} found by rules, ${b.vault.length - rules} by Apertus`;

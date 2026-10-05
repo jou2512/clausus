@@ -308,6 +308,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         except ClaususError as e:
             return failure(e)
         invented = sorted({t for t in _ANY_PLACEHOLDER.findall(answer_masked) if not vault.knows(t)})
+        # Sent to the model but absent from its answer: the model dropped that person or fact.
+        missing = [t for t in dict.fromkeys(_TOKEN.findall(masked)) if t not in answer_masked]
         placeholders = _placeholders(vault, spans)
         sources = {p.token: p.sources for p in placeholders}
         run_id = f"redact-{uuid.uuid4().hex[:12]}"
@@ -320,6 +322,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "answer_masked": answer_masked,
             "answer": vault.restore(answer_masked),
             "invented": invented,
+            "missing": missing,
             "vault": [{"token": t, "type": ty, "original": o, "sources": sources.get(t, [])}
                       for t, ty, o in vault.mapping()],
             "outgoing": [o.model_dump() for o in outgoing],

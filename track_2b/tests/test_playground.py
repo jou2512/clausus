@@ -35,6 +35,7 @@ def test_playground_masks_asks_and_restores(tmp_path):
     assert b["answer_masked"] == ANSWER
     assert b["answer"] == "Rückruf an Thomas Brunner (Huber Treuhand AG), Budget CHF 180'000. Zuständig: [NICHT GENANNT]."
     assert b["invented"] == ["[NICHT GENANNT]"]
+    assert b["missing"] == []
     vault = {m["token"]: (m["type"], m["original"]) for m in b["vault"]}
     assert vault["[PERSON_1]"] == ("PERSON", "Thomas Brunner")
     assert vault["[AMOUNT_1]"][1] == "CHF 180'000"
@@ -78,3 +79,9 @@ def test_playground_serves_the_page(tmp_path):
     client, _ = make(tmp_path, [])
     r = client.get("/")
     assert r.status_code == 200 and "Clausus" in r.text and "text/html" in r.headers["content-type"]
+
+
+def test_playground_reports_placeholders_the_model_dropped(tmp_path):
+    client, _ = make(tmp_path, [DETECT, '{"personen":[]}', '{"namen":[]}', "Ruf [PERSON_1] an."])
+    b = client.post("/playground/run", json={"text": TEXT}).json()
+    assert b["missing"] == ["[ORG_1]", "[AMOUNT_1]"]
