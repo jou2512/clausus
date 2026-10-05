@@ -54,7 +54,9 @@ class PlaygroundRequest(BaseModel):
 
 
 _TOKEN = re.compile(r"\[[A-Z]+_\d+\]")
-_ANY_PLACEHOLDER = re.compile(r"\[[A-ZÄÖÜ][A-ZÄÖÜ_ ]+(?:_\d+)?\]")
+# Anything a model might write as a placeholder, also "[Dein Name]": starts with a letter,
+# at least two characters, so Markdown checkboxes "[x]" and footnotes "[1]" do not count.
+_ANY_PLACEHOLDER = re.compile(r"\[[A-Za-zÄÖÜäöü][A-Za-zÄÖÜäöü_ .\-]{1,40}(?:_\d+)?\]")
 _PAGE = Path(__file__).parent / "static" / "playground.html"
 _SAMPLE_SLIDE = Path(__file__).parent / "static" / "sample-slide.png"
 _DEFAULT_INSTRUCTION = ("Antworte hilfreich und knapp auf die Nachricht. Platzhalter in eckigen Klammern "

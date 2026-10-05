@@ -158,3 +158,10 @@ def test_playground_config_lists_answer_models_and_fixed_detection(tmp_path):
     assert c["answer_models"] == ["apertus-v1.5-70b", "apertus-v1.5-8b"]
     assert c["detection"] == ["apertus-v1.5-70b", "apertus-v1.5-8b"]
     assert client.get("/playground/sample-slide.png").headers["content-type"] == "image/png"
+
+
+def test_invented_placeholders_in_any_case_are_reported_but_not_checkboxes(tmp_path):
+    answer = "Gruss, [Dein Name]. - [x] erledigt, siehe [1]. Ruf [PERSON_1] an."
+    client, _ = make(tmp_path, [DETECT, '{"personen":[]}', '{"namen":[]}', answer])
+    b = client.post("/playground/run", json={"text": TEXT}).json()
+    assert b["invented"] == ["[Dein Name]"]

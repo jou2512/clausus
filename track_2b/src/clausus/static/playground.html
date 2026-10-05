@@ -69,7 +69,12 @@ header h1{font-size:15px;font-weight:600;margin:0 8px 0 0}
 .OTHER{color:var(--other);background:var(--other-bg)}
 .e.hot{outline:2px solid currentColor;outline-offset:1px}
 .unknown{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:var(--warn);background:var(--warn-soft);border-radius:4px;padding:2px 5px}
-.ans p{margin:0 0 10px}.ans .lbl{font-size:12px;color:var(--ink3);margin-right:4px}
+.ans p{margin:0 0 10px}
+.ans h4{font-size:14px;font-weight:650;margin:12px 0 6px}
+.ans ul,.ans ol{margin:0 0 10px;padding-left:20px}
+.ans li{margin:2px 0}
+.ans code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--line2);border-radius:4px;padding:1px 4px}
+.ans strong{font-weight:650}.ans .lbl{font-size:12px;color:var(--ink3);margin-right:4px}
 .flag{margin:4px 14px 14px;font-size:12px;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:7px 10px}
 .arrow{display:none}
 /* composer */
@@ -222,7 +227,7 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const SAMPLE = "Also, kurz zum Stand: Thomas Brunner von der Huber Treuhand AG will das Projekt Nordlicht bis Ende November abschliessen. Budget sind CHF 180'000, Freigabe durch Claudia Meier. Rückfragen bitte an 079 482 17 63 oder t.brunner@huber-treuhand.ch. Der Workshop findet in Winterthur statt.\n\nSchreib mir daraus drei kurze Pendenzen mit Zuständigkeit.";
-const TOK = /(\[[A-ZÄÖÜ][A-ZÄÖÜ_ ]+(?:_\d+)?\])/;
+const TOK = /(\[[A-Za-zÄÖÜäöü][A-Za-zÄÖÜäöü_ .\-]{1,40}(?:_\d+)?\])/;
 let byTok = {}, pinned = null;
 const att = {audio: null, audioName: "", images: []};
 let recorder = null, recStart = 0, recTimer = null;
@@ -280,6 +285,39 @@ const mark = (tok, label, asToken) => {
 };
 const renderTokens = (s, restore) => s.split(TOK).map(p => /^\[.*\]$/.test(p) && TOK.test(p)
   ? mark(p, restore && byTok[p] ? byTok[p].original : p, !restore) : esc(p)).join("").replace(/\n/g, "<br>");
+
+// Small, safe Markdown: everything is escaped first, then only headings, lists, bold, italic and
+// code become HTML. No links, no raw HTML, no network. Placeholders are marked afterwards.
+function mdInline(s) {
+  return s.replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+          .replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>");
+}
+function md(src) {
+  const lines = esc(src).split(/\r?\n/);
+  const out = []; let list = null; let para = [];
+  const flushPara = () => { if (para.length) { out.push(`<p>${mdInline(para.join("<br>"))}</p>`); para = []; } };
+  const flushList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    let m;
+    if (!line.trim()) { flushPara(); flushList(); continue; }
+    if ((m = line.match(/^(#{1,4})\s+(.*)$/))) { flushPara(); flushList(); out.push(`<h4>${mdInline(m[2])}</h4>`); continue; }
+    if ((m = line.match(/^\s*[-*•]\s+(.*)$/)) || (m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
+      const kind = /^\s*\d/.test(line) ? "ol" : "ul";
+      flushPara();
+      if (list !== kind) { flushList(); out.push(`<${kind}>`); list = kind; }
+      out.push(`<li>${mdInline(m[1])}</li>`); continue;
+    }
+    if (list && /^\s{2,}\S/.test(raw)) { out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, `<br>${mdInline(line.trim())}</li>`); continue; }
+    flushList(); para.push(line);
+  }
+  flushPara(); flushList();
+  return out.join("");
+}
+// Placeholders inside already-rendered HTML (tokens never contain < > or quotes).
+const markHtml = (html, restore) => html.replace(new RegExp(TOK.source, "g"),
+  p => mark(p, restore && byTok[p] ? byTok[p].original : p, !restore));
 const toast = t => {
   const n = $("#toast"); n.textContent = t; n.classList.add("on");
   clearTimeout(toast.h); toast.h = setTimeout(() => n.classList.remove("on"), 3200);
@@ -351,7 +389,7 @@ async function run() {
   toast(`${b.vault.length} things masked. The answering model only gets placeholders.`);
   await sleep(900);
   cols[1].classList.remove("busy"); cols[2].classList.remove("wait");
-  $("#c3").innerHTML = renderTokens(b.answer_masked, true);
+  $("#c3").innerHTML = markHtml(md(b.answer_masked), true);
   const notes = [];
   if (b.invented.length) notes.push(`⚠ The model wrote ${b.invented.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}, a placeholder Clausus never issued. Left as is and reported, never guessed.`);
   if (b.missing.length) notes.push(`ℹ Not used in the answer (${b.missing.length}): ${b.missing.map(t => mark(t, byTok[t] ? byTok[t].original : t, false)).join(", ")}. The model saw ${b.missing.length === 1 ? "it as a placeholder" : "them as placeholders"} and left ${b.missing.length === 1 ? "it" : "them"} out. Check the answer if ${b.missing.length === 1 ? "it" : "one of them"} mattered.`);
