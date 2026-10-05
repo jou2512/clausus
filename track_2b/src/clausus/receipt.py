@@ -27,6 +27,7 @@ class Outgoing(BaseModel):
     kind: Literal["original", "masked"]
     model: str
     text: str | None = None  # masked text verbatim; None for original text
+    ms: int | None = None  # how long the call took
 
     @model_validator(mode="after")
     def _never_store_originals(self) -> Outgoing:

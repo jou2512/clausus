@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -88,8 +89,13 @@ class Recorded:
     def chat(self, messages: list[dict[str, Any]], *, model: str | None = None,
              step: str | None = None, **_: Any) -> str:
         content = "\n".join(str(m.get("content", "")) for m in messages)
-        self._outgoing.append(Outgoing(
+        entry = Outgoing(
             step=step or "chat", destination=self._inner.destination, kind=self._kind,
             model=model or self._inner.model, text=content if self._kind == "masked" else None,
-        ))
-        return self._inner.chat(messages, model=model, step=step)
+        )
+        self._outgoing.append(entry)  # listed before the call: a failed call still left the house
+        start = time.perf_counter()
+        try:
+            return self._inner.chat(messages, model=model, step=step)
+        finally:
+            entry.ms = round((time.perf_counter() - start) * 1000)

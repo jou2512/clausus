@@ -47,6 +47,12 @@ class RedactRequest(BaseModel):
     known_entities: list[KnownEntity] = Field(default_factory=list)
 
 
+class AnswerAgainRequest(BaseModel):
+    run_id: str
+    instruction: str = ""
+    answer_model: str = ""
+
+
 class PlaygroundRequest(BaseModel):
     text: str = Field(min_length=1)
     instruction: str = ""
@@ -132,6 +138,10 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         EndpointHearClient(settings.stt_base_url, settings.stt_api_key, settings.stt_model, hear_http)
         if settings.stt_base_url else HearClient(settings.hear_url, hear_http))
     store = guardrail_store if guardrail_store is not None else GuardrailStore()
+    # Recent playground runs: vault + masked text, in memory only, so the answer can be asked
+    # again with another model without detecting again. Lost on restart, expires after 30 min.
+    recent: dict[str, tuple[Vault, str, dict[str, list[str]], float]] = {}
+    recent_ttl = 1800.0
     external = (ChatClient(settings.external_base_url, settings.external_api_key,
                            settings.external_model or settings.llm_name, "external", external_http)
                 if settings.external_configured else None)
@@ -322,34 +332,84 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         return None
 
     def playground(text: str, instruction: str, answer_model: str, outgoing: list[Outgoing],
-                   extra: dict[str, Any]) -> JSONResponse:
+                   extra: dict[str, Any], started: float | None = None) -> JSONResponse:
         """The three stages in one call: what you said, what the answering model sees, what comes
         back. The vault table goes to the local page only, never to a model. Raises ClaususError."""
+        started = started if started is not None else time.perf_counter()
+        t0 = time.perf_counter()
         vault, spans, masked = mask(text, [], outgoing)
-        answer_masked = Recorded(apertus, outgoing, "masked").chat(
-            [{"role": "system", "content": instruction.strip() or _DEFAULT_INSTRUCTION},
-             {"role": "user", "content": masked}], model=answer_model or None, step="answer")
-        invented = sorted({t for t in _ANY_PLACEHOLDER.findall(answer_masked) if not vault.knows(t)})
-        # Sent to the model but absent from its answer: the model dropped that person or fact.
-        missing = [t for t in dict.fromkeys(_TOKEN.findall(masked)) if t not in answer_masked]
+        detect_ms = round((time.perf_counter() - t0) * 1000)
+        answered = answer(vault, masked, instruction, answer_model, outgoing)
         placeholders = _placeholders(vault, spans)
         sources = {pl.token: pl.sources for pl in placeholders}
         run_id = f"redact-{uuid.uuid4().hex[:12]}"
         write_receipt(Receipt(run_id=run_id, model=settings.llm_name, placeholders=placeholders,
                               outgoing=outgoing, notes=["playground", *extra.pop("notes", [])]),
                       settings.runs_dir)
+        now = time.monotonic()
+        for k in [k for k, v in recent.items() if now - v[3] > recent_ttl]:
+            del recent[k]
+        recent[run_id] = (vault, masked, sources, now)
         log.info("playground ok: %d spans, run %s", len(spans), run_id)
+        timings = {"hear_ms": extra.pop("hear_ms", 0), "see_ms": extra.pop("see_ms", 0),
+                   "detect_ms": detect_ms,
+                   "answer_ms": next((o.ms or 0 for o in reversed(outgoing) if o.step == "answer"), 0),
+                   "total_ms": round((time.perf_counter() - started) * 1000)}
         return JSONResponse(content={
             **extra,
+            "timings": timings,
             "original_segments": split_original(text, masked),
             "masked": masked,
+            **answered,
+            "vault": [{"token": t, "type": ty, "original": o, "sources": sources.get(t, [])}
+                      for t, ty, o in vault.mapping()],
+            "outgoing": [o.model_dump() for o in outgoing],
+            "receipt_id": run_id,
+        })
+
+    def answer(vault: Vault, masked: str, instruction: str, answer_model: str,
+               outgoing: list[Outgoing]) -> dict[str, Any]:
+        """The answering model gets the masked text only. Raises ClaususError."""
+        answer_masked = Recorded(apertus, outgoing, "masked").chat(
+            [{"role": "system", "content": instruction.strip() or _DEFAULT_INSTRUCTION},
+             {"role": "user", "content": masked}], model=answer_model or None, step="answer")
+        return {
             "answer_model": answer_model or settings.llm_name,
             "answer_masked": answer_masked,
             "answer": vault.restore(answer_masked),
-            "invented": invented,
-            "missing": missing,
-            "vault": [{"token": t, "type": ty, "original": o, "sources": sources.get(t, [])}
-                      for t, ty, o in vault.mapping()],
+            "invented": sorted({t for t in _ANY_PLACEHOLDER.findall(answer_masked) if not vault.knows(t)}),
+            # Sent to the model but absent from its answer: the model dropped that person or fact.
+            "missing": [t for t in dict.fromkeys(_TOKEN.findall(masked)) if t not in answer_masked],
+        }
+
+    @app.post("/playground/answer")
+    def playground_answer(req: AnswerAgainRequest) -> JSONResponse:
+        """Ask again, maybe with another model, on the stored masked text. No detection."""
+        if (refused := bad_model(req.answer_model)) is not None:
+            return refused
+        item = recent.get(req.run_id)
+        if item is None or time.monotonic() - item[3] > recent_ttl:
+            recent.pop(req.run_id, None)
+            return JSONResponse(status_code=404, content={
+                "status": "error", "error": "run_expired",
+                "detail": "This run is no longer in memory (30 min or a restart). Press Run again."})
+        vault, masked, sources, _ = item
+        outgoing: list[Outgoing] = []
+        started = time.perf_counter()
+        try:
+            answered = answer(vault, masked, req.instruction, req.answer_model, outgoing)
+        except ClaususError as e:
+            return failure(e)
+        run_id = f"redact-{uuid.uuid4().hex[:12]}"
+        write_receipt(Receipt(run_id=run_id, model=settings.llm_name,
+                              placeholders=_placeholders(vault, []), outgoing=outgoing,
+                              notes=["playground answer again", f"masked text from {req.run_id}"]),
+                      settings.runs_dir)
+        recent[run_id] = (vault, masked, sources, time.monotonic())
+        total = round((time.perf_counter() - started) * 1000)
+        return JSONResponse(content={
+            **answered,
+            "timings": {"answer_ms": outgoing[-1].ms or 0, "total_ms": total},
             "outgoing": [o.model_dump() for o in outgoing],
             "receipt_id": run_id,
         })
@@ -381,26 +441,33 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             return refused
         outgoing: list[Outgoing] = []
         notes: list[str] = []
+        started = time.perf_counter()
+        hear_ms = see_ms = 0
         try:
             for img in images:  # validate every image before anything is sent
                 if (img.content_type or "") not in IMAGE_TYPES:
                     raise ClaususError("unsupported_image", f"Unsupported image type: {img.content_type}.")
             spoken = ""
             if audio is not None:
+                t0 = time.perf_counter()
                 heard = hear.transcribe(await audio.read(), audio.filename or "audio")
+                hear_ms = round((time.perf_counter() - t0) * 1000)
                 spoken = heard.text
                 if heard.local:
                     notes.append(f"audio transcribed locally ({heard.duration_s:.0f} s on {heard.device})")
                 else:
                     outgoing.append(Outgoing(step="hear", destination=heard.destination, kind="original",
                                              model=heard.model))
+            t0 = time.perf_counter()
             slides = [read_image(await img.read(), img.content_type or "",
                                  Recorded(apertus, outgoing, "original")) for img in images]
+            see_ms = round((time.perf_counter() - t0) * 1000) if images else 0
             parts = [x for x in (text.strip(), spoken) if x]
             if slides:
                 parts.append("Folien:\n" + "\n\n".join(slides))
             return playground("\n\n".join(parts), instruction, answer_model, outgoing,
-                              {"transcript": spoken, "slides": slides, "notes": notes})
+                              {"transcript": spoken, "slides": slides, "notes": notes,
+                               "hear_ms": hear_ms, "see_ms": see_ms}, started)
         except ClaususError as e:
             return failure(e)
 

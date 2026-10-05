@@ -165,3 +165,52 @@ def test_invented_placeholders_in_any_case_are_reported_but_not_checkboxes(tmp_p
     client, _ = make(tmp_path, [DETECT, '{"personen":[]}', '{"namen":[]}', answer])
     b = client.post("/playground/run", json={"text": TEXT}).json()
     assert b["invented"] == ["[Dein Name]"]
+
+
+def test_every_call_and_the_whole_run_are_timed(tmp_path):
+    client, _ = make_full(tmp_path, ["Folie", PERSON_ONLY, '{"personen":[]}', '{"namen":[]}', "Ruf [PERSON_1] an."])
+    r = client.post("/playground/upload", data={"text": "x"},
+                    files=[("audio", ("rec.webm", b"AUDIO", "audio/webm")),
+                           ("images", ("s.png", b"\x89PNG", "image/png"))])
+    b = r.json()
+    assert all(isinstance(o["ms"], int) and o["ms"] >= 0 for o in b["outgoing"])
+    t = b["timings"]
+    assert set(t) >= {"hear_ms", "total_ms"} and t["total_ms"] >= t["hear_ms"] >= 0
+    rec = json.loads((tmp_path / f"{b['receipt_id']}.json").read_text(encoding="utf-8"))
+    assert all("ms" in o for o in rec["outgoing"])
+
+
+# --- answer again with another model, without detecting again (05.10.) ---
+
+def test_reanswer_uses_the_stored_masked_text_and_skips_detection(tmp_path):
+    client, seen = make_full(tmp_path, [PERSON_ONLY, '{"personen":[]}', '{"namen":[]}', "A: [PERSON_1]",
+                                        "B: [PERSON_1] und [ORG_9]"])
+    first = client.post("/playground/run", json={"text": "Anna Keller ruft an."}).json()
+    calls_before = len(seen)
+    r = client.post("/playground/answer", json={"run_id": first["receipt_id"], "answer_model": "apertus-v1.5-8b"})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert len(seen) == calls_before + 1  # one answer call, no detection
+    assert seen[-1]["model"] == "apertus-v1.5-8b"
+    assert "Ralph" not in json.dumps(seen[-1]["messages"]) and "[PERSON_1]" in json.dumps(seen[-1]["messages"])
+    assert b["answer"] == "B: Anna Keller und [ORG_9]"
+    assert b["invented"] == ["[ORG_9]"]
+    assert b["answer_model"] == "apertus-v1.5-8b"
+    assert b["receipt_id"] != first["receipt_id"]
+    rec = json.loads((tmp_path / f"{b['receipt_id']}.json").read_text(encoding="utf-8"))
+    assert [o["step"] for o in rec["outgoing"]] == ["answer"]
+    assert "Ralph" not in json.dumps(rec, ensure_ascii=False)
+
+
+def test_reanswer_unknown_or_expired_run_is_404(tmp_path):
+    client, seen = make_full(tmp_path, [])
+    r = client.post("/playground/answer", json={"run_id": "redact-000000000000"})
+    assert r.status_code == 404 and seen == []
+
+
+def test_reanswer_refuses_unknown_model(tmp_path):
+    client, seen = make_full(tmp_path, [PERSON_ONLY, '{"personen":[]}', '{"namen":[]}', "A"])
+    first = client.post("/playground/run", json={"text": "Anna Keller ruft an."}).json()
+    n = len(seen)
+    assert client.post("/playground/answer", json={"run_id": first["receipt_id"], "answer_model": "gpt-4o"}).status_code == 400
+    assert len(seen) == n

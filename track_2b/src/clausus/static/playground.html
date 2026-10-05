@@ -40,7 +40,7 @@ nav{background:var(--panel);border-right:1px solid var(--line);display:flex;flex
 .navfoot{margin-top:auto;border:1px solid var(--line);border-radius:var(--r);padding:10px;font-size:12px;color:var(--ink2)}
 .navfoot b{color:var(--ink);display:flex;align-items:center;gap:6px;font-weight:600}
 /* center */
-main{display:flex;flex-direction:column;min-width:0}
+main{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
 header h1{font-size:15px;font-weight:600;margin:0 8px 0 0}
 .sel{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:6px;padding:4px 10px;font-size:13px;background:var(--panel)}
@@ -48,7 +48,7 @@ header h1{font-size:15px;font-weight:600;margin:0 8px 0 0}
 .status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--acc)}
 .iconbtn{border:1px solid var(--line);background:var(--panel);border-radius:6px;width:30px;height:30px;display:grid;place-items:center}
-.stages{flex:1;overflow:auto;padding:18px 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-content:start}
+.stages{flex:1;min-height:0;overflow:auto;padding:18px 20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-content:start}
 .col{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-width:0}
 .colhead{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line2)}
 .step{width:20px;height:20px;border-radius:50%;background:var(--line2);font-size:11px;font-weight:650;display:grid;place-items:center;color:var(--ink2)}
@@ -88,11 +88,11 @@ header h1{font-size:15px;font-weight:600;margin:0 8px 0 0}
 .run kbd{font:11px ui-monospace,Consolas,monospace;opacity:.6}
 .sample{color:var(--acc);border-color:var(--acc-soft);background:var(--acc-soft)}
 /* right panel */
-aside{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+aside{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .tabs{display:flex;gap:4px;padding:10px 14px;border-bottom:1px solid var(--line)}
 .tab{border:0;background:none;padding:5px 10px;border-radius:6px;color:var(--ink2);font-size:13px}
 .tab.on{background:var(--line2);color:var(--ink);font-weight:600}
-.pane{padding:14px;overflow:auto;flex:1}
+.pane{padding:14px;overflow:auto;flex:1;min-height:0}
 .lock{display:flex;gap:10px;align-items:flex-start;background:var(--acc-soft);color:var(--ink);border-radius:var(--r);padding:10px 12px;font-size:12.5px;margin-bottom:14px}
 .lock svg{flex:none;color:var(--acc);margin-top:2px}
 .lock small{display:block;color:var(--ink2)}
@@ -108,6 +108,11 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 .k.orig{color:var(--warn);background:var(--warn-soft)}.k.mask{color:var(--acc);background:var(--acc-soft)}
 .call small{color:var(--ink3);display:block}
 .hidden{display:none}
+.pipe .t{font-variant-numeric:tabular-nums;color:var(--acc);font-weight:600;margin-left:4px}
+.pipe .t:empty{display:none}
+.mini{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px;font-size:11.5px;color:var(--ink2);margin-left:auto}
+.mini:disabled{opacity:.45;cursor:default}
+.col .colhead .mini + .where{margin-left:8px}
 .sel select{border:0;background:none;color:var(--ink);font:inherit;outline:none;cursor:pointer}
 .sel select option{background:var(--panel);color:var(--ink)}
 .atts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
@@ -167,13 +172,14 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
   </header>
 
   <div class="pipe" id="pipe">
-    <span class="pstep"><b>1 · Detect</b> <span class="k orig">original</span> read by <span id="p-detect">Apertus</span></span>
+    <span class="pstep"><b>1 · Detect</b><span class="t" id="t-detect"></span> <span class="k orig">original</span> read by <span id="p-detect">Apertus</span></span>
     <span class="parr">→</span>
     <span class="pstep"><b>2 · Mask + vault</b> on this machine, nothing leaves</span>
     <span class="parr">→</span>
-    <span class="pstep"><b>3 · Answer</b> <span class="k mask">placeholders</span> to <span id="p-answer">Apertus</span></span>
+    <span class="pstep"><b>3 · Answer</b><span class="t" id="t-answer"></span> <span class="k mask">placeholders</span> to <span id="p-answer">Apertus</span></span>
     <span class="parr">→</span>
     <span class="pstep"><b>4 · Restore</b> on this machine</span>
+    <span class="pstep" id="t-totalwrap"><b>Total</b><span class="t" id="t-total"></span></span>
   </div>
   <section class="stages">
     <div class="col">
@@ -186,7 +192,7 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
       <div class="colbody" id="c2"></div>
     </div>
     <div class="col">
-      <div class="colhead"><span class="step">3</span><b>What you get back</b><span class="where">● restored locally</span></div>
+      <div class="colhead"><span class="step">3</span><b>What you get back</b><button class="mini" id="b-again" disabled title="Ask the selected answer model again, on the same masked text, without detecting again">↻ Answer again</button><span class="where">● restored locally</span></div>
       <div class="colbody ans" id="c3"></div>
       <div class="flag" id="flag" style="display:none"></div>
     </div>
@@ -228,7 +234,8 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const SAMPLE = "Also, kurz zum Stand: Thomas Brunner von der Huber Treuhand AG will das Projekt Nordlicht bis Ende November abschliessen. Budget sind CHF 180'000, Freigabe durch Claudia Meier. Rückfragen bitte an 079 482 17 63 oder t.brunner@huber-treuhand.ch. Der Workshop findet in Winterthur statt.\n\nSchreib mir daraus drei kurze Pendenzen mit Zuständigkeit.";
 const TOK = /(\[[A-Za-zÄÖÜäöü][A-Za-zÄÖÜäöü_ .\-]{1,40}(?:_\d+)?\])/;
-let byTok = {}, pinned = null;
+let byTok = {}, pinned = null, lastRun = null;
+const secs = ms => ms ? (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + " s" : "";
 const att = {audio: null, audioName: "", images: []};
 let recorder = null, recStart = 0, recTimer = null;
 
@@ -342,11 +349,46 @@ async function health() {
   }
 }
 
+function showAnswer(b) {
+  $("#c3").innerHTML = markHtml(md(b.answer_masked), true);
+  const notes = [];
+  if (b.invented.length) notes.push(`⚠ The model wrote ${b.invented.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}, a placeholder Clausus never issued. Left as is and reported, never guessed.`);
+  if (b.missing.length) notes.push(`ℹ Not used in the answer (${b.missing.length}): ${b.missing.map(t => mark(t, byTok[t] ? byTok[t].original : t, false)).join(", ")}. The model saw ${b.missing.length === 1 ? "it as a placeholder" : "them as placeholders"} and left ${b.missing.length === 1 ? "it" : "them"} out. Check the answer if ${b.missing.length === 1 ? "it" : "one of them"} mattered.`);
+  $("#flag").innerHTML = notes.join("<br><br>");
+  $("#flag").style.display = notes.length ? "" : "none";
+  $("#t-answer").textContent = secs(b.timings?.answer_ms) + " · " + b.answer_model;
+  $("#p-answer").textContent = b.answer_model + " (Apertus, in this demo)";
+}
+const NOTE = `<p class="note">Detection reads originals by design: Apertus runs in Switzerland. In the fully local setup, this list would point to localhost only.</p>`;
+function showCalls(b, append) {
+  const html = b.outgoing.map(o => `<div class="call"><span class="k ${o.kind === "original" ? "orig" : "mask"}">${esc(o.kind)}</span><div><b>${esc(o.step)}</b> → ${esc(o.model)}${o.ms != null ? ` · ${secs(o.ms)}` : ""}<small>${esc(o.destination)} · ${o.kind === "original" ? "original text, not stored" : "masked text, stored verbatim"}</small></div></div>`).join("");
+  $("#calls").innerHTML = (append ? $("#calls").innerHTML.replace(NOTE, "") : "") + html + NOTE;
+  $("#rid").textContent = "Run " + b.receipt_id;
+}
+async function answerAgain() {
+  if (!lastRun) return;
+  const btn = $("#b-again"); btn.disabled = true; btn.textContent = "↻ Answering…";
+  cols[2].classList.add("busy");
+  try {
+    const r = await fetch("playground/answer", {method: "POST", headers: {"Content-Type": "application/json"},
+                                                body: JSON.stringify({run_id: lastRun, answer_model: $("#model").value})});
+    const b = await r.json();
+    if (!r.ok) throw new Error(b.detail || b.error || ("HTTP " + r.status));
+    lastRun = b.receipt_id;
+    showAnswer(b); showCalls(b, true);
+    $("#t-total").textContent = secs(b.timings.total_ms) + " (answer only)";
+    toast(`Answered again by ${b.answer_model} in ${secs(b.timings.answer_ms)}. Nothing was detected again.`);
+  } catch (e) { toast("Could not answer again: " + e.message); }
+  cols[2].classList.remove("busy");
+  btn.disabled = false; btn.textContent = "↻ Answer again";
+}
 async function run() {
   const text = $("#input").value.trim();
   const media = att.audio || att.images.length;
   if (!text && !media) { toast("Type something, record, or add a file. Or tap “Try the sample”."); return; }
   setRun(true);
+  $("#b-again").disabled = true;
+  ["#t-detect", "#t-answer", "#t-total"].forEach(id => $(id).textContent = "");
   pinned = null; cold();
   cols.forEach(c => c.classList.add("wait"));
   $("#flag").style.display = "none";
@@ -389,17 +431,16 @@ async function run() {
   toast(`${b.vault.length} things masked. The answering model only gets placeholders.`);
   await sleep(900);
   cols[1].classList.remove("busy"); cols[2].classList.remove("wait");
-  $("#c3").innerHTML = markHtml(md(b.answer_masked), true);
-  const notes = [];
-  if (b.invented.length) notes.push(`⚠ The model wrote ${b.invented.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}, a placeholder Clausus never issued. Left as is and reported, never guessed.`);
-  if (b.missing.length) notes.push(`ℹ Not used in the answer (${b.missing.length}): ${b.missing.map(t => mark(t, byTok[t] ? byTok[t].original : t, false)).join(", ")}. The model saw ${b.missing.length === 1 ? "it as a placeholder" : "them as placeholders"} and left ${b.missing.length === 1 ? "it" : "them"} out. Check the answer if ${b.missing.length === 1 ? "it" : "one of them"} mattered.`);
-  if (notes.length) { $("#flag").innerHTML = notes.join("<br><br>"); $("#flag").style.display = ""; }
+  showAnswer(b);
   $("#map").innerHTML = b.vault.map(v => `<tr data-k="${esc(v.token)}"><td><span class="e tok ${v.type}">${esc(v.token)}</span></td><td class="orig"><span class="o">${esc(v.original)}</span></td><td class="srcs">${esc((v.sources || []).join(", "))}</td></tr>`).join("");
   const rules = b.vault.filter(v => (v.sources || []).includes("rule")).length;
   $("#vnote").textContent = `${b.vault.length} placeholders · ${rules} found by rules, ${b.vault.length - rules} by Apertus`;
-  $("#rid").textContent = "Run " + b.receipt_id;
-  $("#calls").innerHTML = b.outgoing.map(o => `<div class="call"><span class="k ${o.kind === "original" ? "orig" : "mask"}">${esc(o.kind)}</span><div><b>${esc(o.step)}</b> → ${esc(o.model)}<small>${esc(o.destination)} · ${o.kind === "original" ? "original text, not stored" : "masked text, stored verbatim"}</small></div></div>`).join("")
-    + `<p class="note">Detection reads originals by design: Apertus runs in Switzerland. In the fully local setup, this list would point to localhost only.</p>`;
+  showCalls(b, false);
+  lastRun = b.receipt_id; $("#b-again").disabled = false;
+  $("#t-detect").textContent = secs(b.timings?.detect_ms);
+  $("#t-total").textContent = secs(b.timings?.total_ms);
+  const extra = [b.timings?.hear_ms ? `heard in ${secs(b.timings.hear_ms)}` : "", b.timings?.see_ms ? `slides read in ${secs(b.timings.see_ms)}` : ""].filter(Boolean);
+  if (extra.length) $("#srcs").insertAdjacentHTML("beforeend", `<span class="chip">⏱ ${extra.join(" · ")}</span>`);
   setRun(false);
 }
 
@@ -412,6 +453,7 @@ document.addEventListener("click", e => {
   cold();
   if (n && pinned !== n.dataset.k) { pinned = n.dataset.k; hot(pinned); } else pinned = null;
 });
+$("#b-again").onclick = answerAgain;
 $("#b-run").onclick = () => run().catch(e => { setRun(false); cols.forEach(c => c.classList.remove("wait", "busy")); toast("Something went wrong: " + e.message); });
 $("#b-sample").onclick = async () => {
   $("#input").value = SAMPLE;
