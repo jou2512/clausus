@@ -20,6 +20,7 @@ services:
       dockerfile: Dockerfile.hear
     environment:
       HEAR_BATCH_SIZE: "${HEAR_BATCH_SIZE:-2}"
+      HEAR_IDLE_UNLOAD_S: "${HEAR_IDLE_UNLOAD_S:-600}"
     volumes:
       - hf-cache:/models  # the ~3 GB model is downloaded once
     restart: unless-stopped

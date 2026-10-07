@@ -4,6 +4,7 @@ import shutil
 import struct
 import wave
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
@@ -127,7 +128,7 @@ def test_health_reports_loading_until_model_is_ready():
     assert c.get("/health").json()["status"] == "loading"
     assert c.post("/transcribe", files={"file": ("a.wav", b"x", "audio/wav")}).status_code == 503
     fake.ready = True
-    assert c.get("/health").json() == {"status": "ok", "device": "cpu", "model": "fake-model"}
+    assert c.get("/health").json() == {"status": "ok", "device": "cpu", "model": "fake-model", "loaded": True}
 
 
 # --- OpenAI-compatible face (07.10.): any tool that speaks /v1/audio/transcriptions can use it ---
@@ -156,3 +157,86 @@ def test_openai_transcriptions_errors_and_models():
     assert c.post("/v1/audio/transcriptions", files={"file": ("a.wav", b"garbage", "audio/wav")}).status_code == 422
     m = c.get("/v1/models").json()
     assert m["object"] == "list" and m["data"][0]["id"]
+
+
+class CountingFlix:
+    """FlixTranscriber with the model replaced by a counter: tests load, unload and reload."""
+
+    @staticmethod
+    def make(idle_unload_s: float = 600):
+        from hear_service.engine import FlixTranscriber
+
+        class T(FlixTranscriber):
+            builds = releases = 0
+
+            def _build_pipe(self):
+                T.builds += 1
+                self.device = "cpu"
+                return lambda inp, return_timestamps: {"text": "grüezi", "chunks": []}
+
+            def _release(self):
+                T.releases += 1
+
+        t = T(idle_unload_s=idle_unload_s)
+        t._load()
+        return t, T
+
+
+def test_idle_model_is_unloaded_only_after_the_idle_time():
+    t, T = CountingFlix.make(idle_unload_s=600)
+    assert t.ready and t.loaded and T.builds == 1
+    assert t.unload_if_idle(now=t._last_used + 599) is False
+    assert t.loaded and T.releases == 0
+    assert t.unload_if_idle(now=t._last_used + 601) is True
+    assert not t.loaded and T.releases == 1
+    assert t.ready  # still serves requests: it reloads on demand
+
+
+def test_request_after_unload_reloads_the_model():
+    t, T = CountingFlix.make()
+    t.unload_if_idle(now=t._last_used + 10_000)
+    segments = t.transcribe(np.zeros(16000, dtype=np.float32))
+    assert segments[0].text == "grüezi"
+    assert t.loaded and T.builds == 2
+
+
+def test_idle_unload_zero_keeps_the_model():
+    t, T = CountingFlix.make(idle_unload_s=0)
+    assert t.unload_if_idle(now=t._last_used + 10**9) is False
+    assert t.loaded and T.releases == 0
+
+
+def test_no_unload_while_a_request_holds_the_model():
+    t, _ = CountingFlix.make()
+    with t._lock:  # a running transcription
+        assert t.unload_if_idle(now=t._last_used + 10_000) is False
+    assert t.loaded
+
+
+def test_failed_reload_answers_503_not_500():
+    t, _ = CountingFlix.make()
+    t.unload_if_idle(now=t._last_used + 10_000)
+
+    def boom():
+        raise MemoryError("CUDA out of memory")
+
+    t._build_pipe = boom
+    c = TestClient(create_app(transcriber=t))
+    import hear_service.app as app_mod
+    orig = app_mod.decode
+    app_mod.decode = lambda data: np.zeros(16000, dtype=np.float32)
+    try:
+        r = c.post("/transcribe", files={"file": ("a.wav", b"x", "audio/wav")})
+    finally:
+        app_mod.decode = orig
+    assert r.status_code == 503
+    assert "reloaded" in r.json()["detail"]
+
+
+def test_health_stays_ok_while_unloaded_and_says_so():
+    t, _ = CountingFlix.make()
+    c = TestClient(create_app(transcriber=t))
+    assert c.get("/health").json()["loaded"] is True
+    t.unload_if_idle(now=t._last_used + 10_000)
+    body = c.get("/health").json()
+    assert body["status"] == "ok" and body["loaded"] is False

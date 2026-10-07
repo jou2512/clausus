@@ -28,7 +28,9 @@ def create_app(transcriber: Transcriber | None = None) -> FastAPI:
             error = getattr(transcriber, "error", None)
             return {"status": "failed" if error else "loading", "device": transcriber.device,
                     "model": transcriber.model, **({"error": error} if error else {})}
-        return {"status": "ok", "device": transcriber.device, "model": transcriber.model}
+        # "ok" also while the model is unloaded for idleness: the next request reloads it.
+        return {"status": "ok", "device": transcriber.device, "model": transcriber.model,
+                "loaded": getattr(transcriber, "loaded", True)}
 
     async def run(file: UploadFile) -> tuple[list, float]:
         if not transcriber.ready:
@@ -40,7 +42,10 @@ def create_app(transcriber: Transcriber | None = None) -> FastAPI:
             audio = decode(data)
         except ValueError as e:
             raise HTTPException(422, "audio could not be decoded") from e
-        segments = transcriber.transcribe(audio)
+        try:
+            segments = transcriber.transcribe(audio)
+        except RuntimeError as e:
+            raise HTTPException(503, str(e)) from e
         duration = len(audio) / SAMPLE_RATE
         log.info("transcribed %.1f s of audio on %s", duration, transcriber.device)  # no content
         return segments, duration
