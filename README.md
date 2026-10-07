@@ -1,60 +1,52 @@
-# Hack Apertus — project template
+# Clausus
 
-Template repository for [Hack Apertus](https://hackapertus.ch/) submissions.
-Every project keeps almost the same layout, so organizers and judges find the
-same things in the same place.
+A masking layer for confidential meetings, built with Apertus for
+[Hack Apertus](https://hackapertus.ch/), Track 2B.
 
-## Select your track
+Clausus takes a meeting as Swiss German audio, slides and text, finds what is
+confidential (people, companies, projects, amounts, dates, contact data) and
+replaces it with placeholders before any model writes the protocol. The model
+only ever sees `[PERSON_1]`, `[ORG_2]`, `[AMOUNT_1]`. The originals stay in a
+vault on your side and are put back into the answer at the end. Every run
+leaves a receipt that lists what left Clausus, and whether it was masked or
+original.
 
-This repository holds one example project per track:
-
-- `track_1a/`
-- `track_1b/`
-- `track_2a/`
-- `track_2b/`
-
-Keep the directory for the track you are competing in **exactly as it is** —
-don't rename it or move its files — and delete the other track directories.
-That directory is your project root. Keep the files and directories as shown
-below.
-
-## The structure
-
-| Path | What it is |
-| --- | --- |
-| `README.md` | The challenge description and submission requirements for your track |
-| `technical_report.md` | The deeper write-up: architecture, evaluation, limitations |
-| `Makefile` | `make run` must spin up your project |
-| `src/` | Your code |
-| `data/` | Datasets — `track_1a`, `track_2a` and `track_2b` only; max. 100 MB |
-| `findings/` | Issue files — `track_1a` only |
-| `docs/` | Diagrams, notes, longer write-ups |
+The project lives in [`track_2b/`](track_2b/). The write-up is
+[`track_2b/technical_report.md`](track_2b/technical_report.md).
 
 ## Run it
 
-Judges run `make run` from the root of the project, on a clean checkout:
+You need Docker and an API key for an OpenAI-compatible endpoint serving
+Apertus 1.5 (the Hack Apertus endpoint is preset).
 
 ```bash
-make run
+cd track_2b
+cp .env.example .env      # then set LLM_API_KEY in .env
+make run                  # with an NVIDIA GPU for speech: make run-gpu
 ```
 
-`make run` is expected to run the project using Docker, since that
-is how the judges will run it.
-- If you used other local open-weight models, include instructions for running the project in your technical report.
-- Use the following environment variables:
-```
-LLM_NAME — name and version of the model
-LLM_BASE_URL — endpoint base URL
-LLM_API_KEY — your API key
-```
+Open <http://localhost:8080>. The playground shows the three stages side by
+side: the original, what the model sees, and the answer with the names put
+back. It also has a chat whose vault is stored encrypted.
 
-## Getting started
+- **Port 8080 taken?** Set `CLAUSUS_PORT=8180` (or any free port) in `.env`.
+- **No `make` (Windows)?** Run `docker compose up --build` inside `track_2b/`.
+- **Speed on CPU:** speech recognition runs locally. On our machine a 50 second
+  recording plus one slide took about 3.5 minutes end to end on CPU.
+- **Health:** `curl localhost:8080/health` reports the model endpoint and the
+  speech service.
 
-1. Click **Use this template** to create your own repository.
-2. Delete the other track directories. Don't rename or restructure yours.
-3. Read its `README.md` and fill in `technical_report.md`.
-4. Make `make run` work from the root of the project, on a clean checkout.
+## API
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /redact` | Text in, masked text and placeholder list out |
+| `POST /meeting` | Transcript in, protocol with real names out |
+| `POST /meeting/upload` | Audio, slides and text in one call |
+| `GET /receipts/{id}` | What left Clausus in that run |
+| `POST /beta/litellm_basic_guardrail_api` | Use Clausus as a LiteLLM guardrail ([docs](track_2b/docs/litellm.md)) |
 
 ## License
 
-All Hack Apertus projects are open-sourced. Please check our Terms & Conditions for specific licensing details (6. What you build is open source): https://hackapertus.ch/terms-and-conditions
+All Hack Apertus projects are open source. See the
+[Terms & Conditions](https://hackapertus.ch/terms-and-conditions), section 6.
