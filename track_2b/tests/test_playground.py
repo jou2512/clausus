@@ -254,7 +254,8 @@ def test_page_has_unique_ids_and_the_known_names_field(tmp_path):
     html = client.get("/").text
     ids = _re.findall(r'\bid="([^"]+)"', html)
     assert len(ids) == len(set(ids)), sorted({i for i in ids if ids.count(i) > 1})
-    for needed in ("input", "known", "model", "b-run", "b-again", "progress", "atts", "map", "calls"):
+    for needed in ("input", "known", "model", "b-run", "b-again", "progress", "atts", "map", "calls",
+                   "chatin", "chatlog", "b-send", "vlist", "keybox", "rlist", "ecards"):
         assert f'id="{needed}"' in html, needed
 
 

@@ -108,6 +108,23 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 .k.orig{color:var(--warn);background:var(--warn-soft)}.k.mask{color:var(--acc);background:var(--acc-soft)}
 .call small{color:var(--ink3);display:block}
 .hidden{display:none!important}
+.chatwrap{display:flex;flex-direction:column;gap:10px;max-width:860px;margin:0 auto}
+.chathead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chathead select{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:4px 8px;font:inherit;font-size:13px;max-width:320px}
+.msg{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--panel);max-width:88%}
+.msg.user{align-self:flex-end;background:var(--line2)}
+.msg .meta{font-size:11.5px;color:var(--ink3);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+.msg .meta button{border:0;background:none;color:var(--acc);font-size:11.5px;padding:0}
+.msg .seen{display:none;margin-top:8px;font-size:12.5px;border-top:1px dashed var(--line);padding-top:8px;color:var(--ink2)}
+.msg.show .seen{display:block}
+.chatbox{display:flex;gap:8px;align-items:flex-end;position:sticky;bottom:0;background:var(--bg);padding:8px 0}
+.chatbox textarea{flex:1;min-height:56px;max-height:30vh;resize:vertical;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;padding:10px;outline:none}
+.vtable{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.vtable th{text-align:left;font-size:12px;color:var(--ink3);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+.vtable td{padding:8px 10px;border-bottom:1px solid var(--line2)}
+.danger{border:1px solid var(--bad-soft);background:var(--bad-soft);color:var(--bad);border-radius:6px;padding:3px 10px;font-size:12px}
+.keybox{margin:0 0 14px;padding:10px 12px;border-radius:8px;font-size:12.5px}
+.keybox.ok{background:var(--acc-soft)}.keybox.warn{background:var(--warn-soft);color:var(--warn)}
 .view{flex:1;min-height:0;overflow:auto;padding:18px 20px}
 .view h2{font-size:16px;margin:0 0 4px}
 .view .sub{color:var(--ink2);font-size:13px;margin:0 0 14px}
@@ -241,6 +258,23 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
       <button class="run" id="b-run">Run <kbd>Ctrl ↵</kbd></button>
     </div>
   </div>
+  <section class="view hidden" id="view-chat">
+    <div class="chatwrap">
+      <div class="chathead"><h2 style="margin:0">Chat</h2>
+        <select id="chatsel"></select>
+        <button class="mini" id="b-newchat" style="margin-left:0">+ New chat</button>
+        <span class="sub" style="margin:0">One vault per chat: the same person keeps the same placeholder. Saved encrypted on this machine.</span></div>
+      <div id="chatlog" class="chatwrap" style="max-width:none;width:100%"></div>
+      <div class="chatbox"><textarea id="chatin" placeholder="Write a message. Names, amounts and dates are masked before the model sees them."></textarea>
+        <button class="run" id="b-send" style="margin-left:0">Send</button></div>
+    </div>
+  </section>
+  <section class="view hidden" id="view-vault">
+    <h2>Vault</h2>
+    <p class="sub">Saved chats. Each file holds the vault and the history, encrypted with AES-256-GCM. Deleting removes the file for good.</p>
+    <div class="keybox" id="keybox"></div>
+    <table class="vtable"><thead><tr><th>Last change</th><th>Chat</th><th>Messages</th><th>Placeholders</th><th></th></tr></thead><tbody id="vlist"></tbody></table>
+  </section>
   <section class="view hidden" id="view-receipts">
     <h2>Receipts</h2>
     <p class="sub">Every run, newest first. A receipt lists every call that left Clausus. Original text is never stored, masked text is stored verbatim.</p>
@@ -560,7 +594,7 @@ $("#b-sample").onclick = async () => {
   } catch (e) { /* text only */ }
   renderAtts(); $("#b-run").click();
 };
-document.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "Enter") $("#b-run").click(); });
+document.addEventListener("keydown", e => { if (e.ctrlKey && e.key === "Enter" && e.target.id !== "chatin") $("#b-run").click(); });
 $("#b-rec").onclick = toggleRecord;
 $("#b-up").onclick = () => $("#file").click();
 $("#file").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
@@ -578,6 +612,10 @@ function showView(name) {
   PLAY.forEach(sel => document.querySelector(sel).classList.toggle("hidden", name !== "playground"));
   if (name !== "playground") $("#progress").classList.add("off");
   $("#view-receipts").classList.toggle("hidden", name !== "receipts");
+  $("#view-chat").classList.toggle("hidden", name !== "chat");
+  $("#view-vault").classList.toggle("hidden", name !== "vault");
+  if (name === "chat") loadChats();
+  if (name === "vault") loadVault();
   $("#view-endpoints").classList.toggle("hidden", name !== "endpoints");
   if (name === "receipts") loadReceipts();
   if (name === "endpoints") loadEndpoints();
@@ -621,11 +659,83 @@ async function loadEndpoints() {
     ].join("");
   } catch (err) { $("#ecards").innerHTML = esc(err.message); }
 }
+let chatId = null, chatVault = {};
+const chatMark = (seg) => seg.token ? `<span class="e ${esc((chatVault[seg.token] || {}).type || "OTHER")}" data-k="${esc(seg.token)}">${esc(seg.text)}</span>` : esc(seg.text);
+function renderChat(messages) {
+  $("#chatlog").innerHTML = messages.length ? messages.map((m, i) => {
+    const body = m.role === "user" ? (m.segments || [{text: m.original}]).map(chatMark).join("").replace(/\n/g, "<br>")
+                                   : markHtml(md(m.masked), true);
+    const seen = m.role === "user" ? renderTokens(m.masked, false) : esc(m.masked).replace(/\n/g, "<br>");
+    const meta = m.role === "user" ? "you" : `${esc(m.model || "")}${(m.invented || []).length ? ` · ⚠ invented ${m.invented.map(esc).join(", ")}` : ""}`;
+    return `<div class="msg ${m.role}" id="m${i}">${body}<div class="meta"><span>${meta}</span><button data-show="m${i}">what the model ${m.role === "user" ? "saw" : "wrote"}</button></div><div class="seen">${seen}</div></div>`;
+  }).join("") : '<p class="sub">No messages yet. Everything you write here is masked before the answering model sees it.</p>';
+  const v = $("#view-chat"); v.scrollTop = v.scrollHeight;
+}
+function useVault(rows) { chatVault = Object.fromEntries(rows.map(r => [r.token, r])); byTok = chatVault; }
+async function loadChats(select) {
+  try {
+    const b = await callClausus("chat/sessions", {});
+    $("#chatsel").innerHTML = b.sessions.filter(x => x.readable).map(x => `<option value="${esc(x.id)}">${esc(x.title || "(empty chat)")} · ${x.messages} msg</option>`).join("") || "<option value=''>no chats yet</option>";
+    const want = select || chatId || (b.sessions[0] && b.sessions[0].id);
+    if (want) { $("#chatsel").value = want; await openChat(want); } else { chatId = null; renderChat([]); }
+  } catch (e) { toast(e.message); }
+}
+async function openChat(id) {
+  if (!id) return;
+  chatId = id;
+  try { const s = await callClausus("chat/sessions/" + encodeURIComponent(id), {}); useVault(s.vault); renderChat(s.messages); }
+  catch (e) { toast(e.message); }
+}
+async function newChat() {
+  const b = await callClausus("chat/sessions", {method: "POST"});
+  await loadChats(b.session_id);
+}
+async function sendChat() {
+  const text = $("#chatin").value.trim(); if (!text) return;
+  if (!chatId) await newChat();
+  const btn = $("#b-send"); btn.disabled = true;
+  startProgress("Masking, then asking " + $("#model").value + "…");
+  $("#progress").classList.remove("off");
+  try {
+    const b = await callClausus(`chat/sessions/${encodeURIComponent(chatId)}/messages`, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text, answer_model: $("#model").value, known_entities: knownEntities()})});
+    $("#chatin").value = "";
+    toast(`Masked ${b.vault.length} so far in this chat · answered in ${secs(b.timings.total_ms)}`);
+    await loadChats(chatId);
+  } catch (e) { toast("Not sent: " + e.message); }
+  stopProgress(); btn.disabled = false;
+}
+async function loadVault() {
+  try {
+    const b = await callClausus("chat/sessions", {});
+    $("#keybox").className = "keybox " + (b.key_from_env ? "ok" : "warn");
+    $("#keybox").textContent = b.key_from_env
+      ? "Key from CLAUSUS_VAULT_KEY (environment). The files alone are unreadable."
+      : "Demo key: created next to the files. Whoever has the disk has the key too. For real use set CLAUSUS_VAULT_KEY in .env.";
+    $("#vlist").innerHTML = b.sessions.length ? b.sessions.map(x => x.readable
+      ? `<tr><td>${esc(when(new Date(x.updated_at * 1000).toISOString()))}</td><td>${esc(x.title || "(empty chat)")} <small class="no">${esc(x.id)}</small></td><td>${x.messages}</td><td>${x.placeholders}</td><td><button class="mini" data-open="${esc(x.id)}">open</button> <button class="danger" data-del="${esc(x.id)}">delete</button></td></tr>`
+      : `<tr><td colspan="4" class="no">${esc(x.id)}: cannot be decrypted with this key</td><td><button class="danger" data-del="${esc(x.id)}">delete</button></td></tr>`).join("")
+      : '<tr><td colspan="5" class="no">No saved chats.</td></tr>';
+  } catch (e) { toast(e.message); }
+}
 const VIEWS = ["playground", "chat", "receipts", "endpoints", "vault"];
 document.querySelectorAll("nav .navi").forEach((b, i) => {
   b.dataset.view = VIEWS[i];
-  b.onclick = () => (["chat", "vault"].includes(b.dataset.view) ? toast("Chat and the encrypted vault come next.") : showView(b.dataset.view));
+  b.onclick = () => showView(b.dataset.view);
 });
+$("#b-newchat").onclick = () => newChat().catch(e => toast(e.message));
+$("#chatsel").onchange = e => openChat(e.target.value);
+$("#b-send").onclick = () => sendChat();
+$("#chatin").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendChat(); } });
+$("#chatlog").onclick = e => { const b = e.target.closest("[data-show]"); if (b) document.getElementById(b.dataset.show).classList.toggle("show"); };
+$("#vlist").onclick = async e => {
+  const del = e.target.closest("[data-del]"), open = e.target.closest("[data-open]");
+  if (open) { chatId = open.dataset.open; showView("chat"); return; }
+  if (!del) return;
+  if (del.dataset.confirm !== "1") { del.dataset.confirm = "1"; del.textContent = "really delete?"; return; }
+  try { await callClausus("chat/sessions/" + encodeURIComponent(del.dataset.del), {method: "DELETE"}); if (chatId === del.dataset.del) chatId = null; toast("Deleted for good."); loadVault(); }
+  catch (err) { toast(err.message); }
+};
 $("#rlist").onclick = e => { const tr = e.target.closest("tr.r"); if (tr) showReceipt(tr.dataset.id); };
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));

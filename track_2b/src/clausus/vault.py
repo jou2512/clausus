@@ -135,6 +135,20 @@ class Vault:
 
         return re.sub(r"(\b[\wäöüÄÖÜ]+\s+)?(\[[A-Z]+_\d+\])", put_back, text)
 
+    # --- persistence (encrypted by clausus.sessions, never written in the clear) -------------
+    def to_dict(self) -> dict:
+        return {"entries": [{"token": e.token, "type": e.type, "variants": e.variants, "keys": sorted(e.keys)}
+                            for e in self._entries],
+                "counters": dict(self._counters)}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Vault:
+        v = cls()
+        v._entries = [_Entry(token=e["token"], type=e["type"], variants=list(e["variants"]),
+                             keys=frozenset(e["keys"])) for e in data.get("entries", [])]
+        v._counters = {k: int(n) for k, n in data.get("counters", {}).items()}
+        return v
+
     def mapping(self) -> list[tuple[str, str, str]]:
         """(token, type, original) for the local playground. Never sent to a model."""
         return [(e.token, e.type, e.canonical) for e in self._entries]

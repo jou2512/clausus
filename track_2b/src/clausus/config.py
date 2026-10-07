@@ -33,6 +33,9 @@ class Settings:
     stt_base_url: str = ""
     stt_api_key: str = field(default="", repr=False)
     stt_model: str = "whisper-1"
+    # Chat sessions, encrypted at rest. Empty key: one is created next to the sessions (demo only).
+    vault_dir: str = ""
+    vault_key: str = field(default="", repr=False)
 
     @property
     def external_configured(self) -> bool:
@@ -65,4 +68,6 @@ class Settings:
             stt_base_url=env.get("STT_BASE_URL", "").strip().rstrip("/"),
             stt_api_key=env.get("STT_API_KEY", "").strip(),
             stt_model=env.get("STT_MODEL", "").strip() or "whisper-1",
+            vault_dir=env.get("CLAUSUS_VAULT_DIR", "").strip(),
+            vault_key=env.get("CLAUSUS_VAULT_KEY", "").strip(),
         )
