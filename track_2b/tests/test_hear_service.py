@@ -128,3 +128,31 @@ def test_health_reports_loading_until_model_is_ready():
     assert c.post("/transcribe", files={"file": ("a.wav", b"x", "audio/wav")}).status_code == 503
     fake.ready = True
     assert c.get("/health").json() == {"status": "ok", "device": "cpu", "model": "fake-model"}
+
+
+# --- OpenAI-compatible face (07.10.): any tool that speaks /v1/audio/transcriptions can use it ---
+
+def test_openai_transcriptions_returns_text():
+    c = TestClient(create_app(transcriber=FakeTranscriber()))
+    r = c.post("/v1/audio/transcriptions", files={"file": ("a.wav", wav_bytes(2.0), "audio/wav")},
+               data={"model": "anything"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"text": "Hallo zusammen."}
+
+
+def test_openai_transcriptions_text_and_verbose_formats():
+    c = TestClient(create_app(transcriber=FakeTranscriber()))
+    files = {"file": ("a.wav", wav_bytes(2.0), "audio/wav")}
+    t = c.post("/v1/audio/transcriptions", files=files, data={"model": "x", "response_format": "text"})
+    assert t.headers["content-type"].startswith("text/plain") and t.text == "Hallo zusammen."
+    v = c.post("/v1/audio/transcriptions", files={"file": ("a.wav", wav_bytes(2.0), "audio/wav")},
+               data={"model": "x", "response_format": "verbose_json"}).json()
+    assert v["text"] == "Hallo zusammen." and v["duration"] == pytest.approx(2.0, abs=0.05) and len(v["segments"]) == 2
+
+
+def test_openai_transcriptions_errors_and_models():
+    c = TestClient(create_app(transcriber=FakeTranscriber()))
+    assert c.post("/v1/audio/transcriptions", files={"file": ("a.wav", b"", "audio/wav")}).status_code == 400
+    assert c.post("/v1/audio/transcriptions", files={"file": ("a.wav", b"garbage", "audio/wav")}).status_code == 422
+    m = c.get("/v1/models").json()
+    assert m["object"] == "list" and m["data"][0]["id"]
