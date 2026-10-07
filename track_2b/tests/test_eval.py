@@ -89,3 +89,17 @@ def test_load_cases_rejects_secret_not_in_text(tmp_path):
         assert "zzz" in str(e)
     else:
         raise AssertionError("bad case accepted")
+
+
+def test_concat_joins_cases_into_long_texts_that_keep_every_secret():
+    from clausus.eval import Case, Secret, concat
+    cases = [Case(id=f"c{i}", style=s, text=f"Text {i} mit Name{i}.", secrets=[Secret(f"Name{i}", "PERSON")])
+             for i, s in enumerate(["a", "a", "b", "b", "c", "c"])]
+    long = concat(cases, 3)
+    assert [c.id for c in long] == ["long-01", "long-02"]
+    assert all(c.style == "lang" for c in long)
+    assert sum(len(c.secrets) for c in long) == 6
+    assert {s.text for c in long for s in c.secrets} == {f"Name{i}" for i in range(6)}
+    assert all(s.text in c.text for c in long for s in c.secrets)
+    assert long[0].text.count("\n\n") == 2  # paragraphs, as a pasted document would have
+    assert {c.id for c in cases} == {"c0", "c1", "c2", "c3", "c4", "c5"}  # input untouched

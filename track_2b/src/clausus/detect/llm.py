@@ -72,11 +72,18 @@ FUNCTION_WORDS = {
 }
 
 
+# "Stufe 2", "Paket 3b": a section of a long planning text without names came back with its
+# outline labels as confidential (07.10.2026). They name a place in the document, not a party.
+OUTLINE_LABEL = re.compile(
+    r"(?:Stufe|Paket|Phase|Modul|Schritt|Teil|Kapitel|Punkt|Abschnitt|Step|Stage|Package|Version)"
+    r"\s*\d+[a-z]?", re.IGNORECASE)
+
+
 def _locate(text: str, needle: str, span_type: str) -> list[Span]:
     """Every whole-word occurrence of the model's answer in the original; nothing if it is not
     there. A trailing genitive s still counts ("Otts Büro"), a longer word does not ("Otto")."""
     needle = needle.strip()
-    if len(needle) < 2 or needle.casefold() in FUNCTION_WORDS:
+    if len(needle) < 2 or needle.casefold() in FUNCTION_WORDS or OUTLINE_LABEL.fullmatch(needle):
         return []
     pattern = re.compile(rf"(?<!\w){re.escape(needle)}(?=s?(?!\w))", re.IGNORECASE)
     return [Span(text=m.group(0), type=span_type, start=m.start(), end=m.end(), source="model")

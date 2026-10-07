@@ -8,6 +8,7 @@ Each model pass has blind spots the others do not share (measured, see detect/ll
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 from clausus.detect.llm import ChatModel, detect_names, detect_persons, detect_with_model
 from clausus.detect.rules import find_rule_spans
@@ -56,11 +57,44 @@ def resolve_overlaps(spans: list[Span]) -> list[Span]:
     return sorted(kept, key=lambda s: s.start)
 
 
+# Joel's chat 07.10.2026: on a 2755-character planning text the 70B pass returned three names and
+# the person pass missed "Gisigers"; paragraph by paragraph both were found. Measured on the
+# held-out set joined into long texts (191 spans): one call 9.4 % leaked, 700-char sections 4.7 %,
+# 400-char sections 2.1 %. Every short benchmark case is under 400 characters, so it stays one
+# section and its number is unaffected.
+SECTION_CHARS = 400
+
+
+def sections(text: str, size: int = SECTION_CHARS) -> list[tuple[int, str]]:
+    """Consecutive pieces of at most about `size` characters, cut only at line ends, with their
+    offset in the text. Together they are exactly the text."""
+    out: list[tuple[int, str]] = []
+    start = pos = 0
+    for line in text.splitlines(keepends=True):
+        if pos > start and pos + len(line) - start > size:
+            out.append((start, text[start:pos]))
+            start = pos
+        pos += len(line)
+    out.append((start, text[start:]))
+    return out
+
+
+def _model_spans(part: str, offset: int, llm: ChatModel, person_model: str | None) -> list[Span]:
+    found = detect_with_model(part, llm) + detect_persons(part, llm, model=person_model)
+    found += detect_names(part, llm)
+    return [s.model_copy(update={"start": s.start + offset, "end": s.end + offset}) for s in found]
+
+
 def detect(text: str, llm: ChatModel, person_model: str | None = None) -> list[Span]:
-    """All layers must run. If any model call fails, the error propagates: a half
-    detection must never be treated as a complete one (fail closed)."""
-    spans = find_rule_spans(text) + detect_with_model(text, llm)
-    spans += detect_persons(text, llm, model=person_model)
-    spans += detect_names(text, llm)
+    """All layers must run, on every section. If any model call fails, the error propagates: a
+    half detection must never be treated as a complete one (fail closed)."""
+    parts = sections(text)
+    spans = find_rule_spans(text)
+    if len(parts) == 1:
+        spans += _model_spans(text, 0, llm, person_model)
+    else:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for found in pool.map(lambda p: _model_spans(p[1], p[0], llm, person_model), parts):
+                spans += found
     spans = [strip_article(s) for s in spans]
     return resolve_overlaps(type_untyped(spans))

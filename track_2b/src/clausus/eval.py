@@ -69,6 +69,17 @@ def load_cases(path: str | Path) -> list[Case]:
     return cases
 
 
+def concat(cases: list[Case], per_text: int) -> list[Case]:
+    """Join cases into long texts of `per_text` paragraphs each, taking every k-th case so that
+    styles mix. Same secrets, longer input: isolates what length alone does to detection
+    (Joel's chat 07.10.2026 leaked amounts and a name on a 2755-character text, while every
+    case in the sets is under 400 characters)."""
+    k = max(1, len(cases) // per_text)
+    groups = [cases[i::k] for i in range(k)]
+    return [Case(id=f"long-{n:02d}", style="lang", text="\n\n".join(c.text for c in g),
+                 secrets=[s for c in g for s in c.secrets]) for n, g in enumerate(groups, 1)]
+
+
 def _present(needle: str, text: str) -> bool:
     return re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", text, re.IGNORECASE) is not None
 
@@ -151,12 +162,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cases", default="data/eval/cases.json")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--out", default="runs")
+    ap.add_argument("--concat", type=int, default=0,
+                    help="join N cases into one long text (measures the effect of length)")
     args = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
 
     settings = Settings.from_env()
     llm = ApertusClient(settings)
     cases = load_cases(args.cases)
+    if args.concat:
+        cases = concat(cases, args.concat)
     started = time.monotonic()
     runs = []
     for i in range(args.runs):
@@ -171,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "created_at": datetime.now(UTC).isoformat(),
         "model": settings.llm_name, "fast_model": settings.fast_model,
-        "cases_file": args.cases, "runs": runs,
+        "cases_file": args.cases, "concat": args.concat, "runs": runs,
         "seconds": round(time.monotonic() - started, 1),
     }
     out = Path(args.out)

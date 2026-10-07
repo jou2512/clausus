@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from clausus.detect import detect
@@ -172,3 +174,71 @@ def test_a_model_find_is_matched_as_a_whole_word_only():
     text = "Otto und Ott treffen sich in Otts Büro."
     spans = detect_with_model(text, FakeLLM('{"stellen":[{"text":"Ott","typ":"PERSON"}]}'))
     assert [(s.text, s.start) for s in spans] == [("Ott", text.index("Ott ")), ("Ott", text.index("Otts"))]
+
+
+class ByPromptLLM:
+    """Answers by what the prompt asks and which names its text contains, in any call order
+    (long texts are checked in parallel sections)."""
+
+    def __init__(self, persons=(), names=()):
+        self.persons, self.names, self.calls = persons, names, 0
+
+    def chat(self, messages, **kw):
+        self.calls += 1
+        prompt = messages[0]["content"]
+        text = prompt.split("TEXT:\n", 1)[1]
+        if prompt.startswith("Nenne ALLE Personen"):
+            return json.dumps({"personen": [p for p in self.persons if p in text]})
+        if prompt.startswith("Nenne im folgenden Text ALLE Namen"):
+            return json.dumps({"namen": [n for n in self.names if n in text]})
+        return '{"stellen":[]}'
+
+
+def test_sections_split_on_line_breaks_and_cover_the_whole_text():
+    from clausus.detect import sections
+    text = "\n".join(f"Zeile {i:02d} " + "x" * 60 for i in range(30))
+    parts = sections(text, size=300)
+    assert len(parts) > 1
+    assert "".join(p for _, p in parts) == text
+    assert all(text[o:o + len(p)] == p for o, p in parts)
+    assert all(p.endswith("\n") for _, p in parts[:-1])  # cut only at line ends
+
+
+def test_a_long_text_is_checked_section_by_section_and_offsets_point_into_the_original():
+    """Joel's chat 07.10.2026: on 2755 characters the person pass missed "Gisigers"; paragraph by
+    paragraph it found it."""
+    filler = "Dies ist eine lange Zeile ohne Namen, nur Planung und Pakete.\n" * 12
+    text = filler + "Wunsch von Gisiger bei der Planung.\n" + filler + "Rückfrage an Fässler.\n"
+    llm = ByPromptLLM(persons=["Gisiger", "Fässler"])
+    spans = detect(text, llm)
+    assert [(s.text, s.type) for s in spans] == [("Gisiger", "PERSON"), ("Fässler", "PERSON")]
+    assert all(text[s.start:s.end] == s.text for s in spans)
+    assert llm.calls > 3  # more than one section was asked
+
+
+def test_a_short_text_is_still_one_section():
+    llm = ByPromptLLM(persons=["Nadine"])
+    assert [s.text for s in detect("D'Nadine chunnt.", llm)] == ["Nadine"]
+    assert llm.calls == 3
+
+
+def test_a_failing_section_fails_the_whole_detection():
+    class FailsOnSecond(ByPromptLLM):
+        def chat(self, messages, **kw):
+            if "ZWEITER" in messages[0]["content"]:
+                raise ClaususError("bad_response", "500")
+            return super().chat(messages, **kw)
+
+    text = "erster Teil\n" * 80 + "ZWEITER Teil\n" * 80
+    with pytest.raises(ClaususError):
+        detect(text, FailsOnSecond())
+
+
+def test_outline_labels_are_not_names():
+    """07.10.2026, long planning text: a section without names came back with "Stufe 2",
+    "Paket 3" as confidential, which would hide the structure the answer is about."""
+    text = "Stufe 2 · Steuern\nPaket 3 · Kompass bei Treuhand Albis, Phase 1, Modul 4b"
+    llm = FakeLLM('{"stellen":[{"text":"Stufe 2","typ":"SONSTIGES"},{"text":"Paket 3","typ":"SONSTIGES"},'
+                  '{"text":"Phase 1","typ":"PROJEKT"},{"text":"Modul 4b","typ":"SONSTIGES"},'
+                  '{"text":"Treuhand Albis","typ":"FIRMA"}]}')
+    assert [s.text for s in detect_with_model(text, llm)] == ["Treuhand Albis"]

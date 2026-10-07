@@ -86,3 +86,34 @@ second column exists. Many of Presidio's person leaks are a surname mentioned ag
 after "Marco Pedrini"): it looks at each mention alone, while Clausus' vault masks every later
 mention of a name it already found. Presidio runs locally in about a second for the whole set;
 Clausus needs a model call per pass.
+
+## Long texts: `long.json` and `--concat` (07.10.2026)
+
+Every case above is under 400 characters. A real chat message or a pasted planning document is
+longer, and on one such text (2755 characters, live test in the playground) the broad 70B pass
+returned only three names: amounts, quarters and a person reached the answering model in clear.
+Two measurements make this visible:
+
+- `--concat 6` joins six held-out cases into one text (four texts of about 1.6k characters). Same
+  191 spans, only the length changes.
+- `long.json`: four new invented texts, 1.0 to 1.4k characters, 89 marked spans, in the forms such
+  texts take: a planning document with a table, a meeting transcript, an e-mail thread with English
+  terms, a Swiss German conversation. Same provenance and license as above; written after the
+  length problem was found, and used to choose the section size below (so it is not held out).
+
+Since then detection runs per section of at most 400 characters, cut at line ends, the sections in
+parallel. A text under 400 characters is one section, so the short-case numbers are unaffected.
+
+| Leak rate | one call per text | 700-char sections | 400-char sections |
+|---|---:|---:|---:|
+| held-out joined (`--concat 6`, 191 spans) | 9.4 % (2 runs) | 4.7 % (2 runs) | **2.1 %** |
+| `long.json` (89 spans) | 6.7 % (2 runs) | 1.1 % (2 runs) | **0.0 %** |
+| held-out as short cases (191 spans) | 1.6 % | | 1.6 % |
+
+400-char sections: one run each. The cost is more calls per text (three per section) and a few more
+spans masked that are not secret (5 on `long.json`, mostly table labels). What still leaks on the
+joined held-out set is the hard part of the short set too: amounts written as words and vague
+Swiss German dates.
+
+Run: `python -m clausus.eval --cases data/eval/holdout.json --concat 6` ·
+`python -m clausus.eval --cases data/eval/long.json`

@@ -1,0 +1,390 @@
+{
+ "version": 1,
+ "set": "long",
+ "cases": [
+  {
+   "id": "l01",
+   "style": "planung",
+   "text": "Roadmap Mandantenportal für die Treuhand Albis GmbH\n\nDie Treuhand Albis GmbH will von der Papierablage über eine eigene Leistungserfassung bis zum Mandantenportal. Laut Workshop mit Beat Wymann soll KontorPlus bis Mitte 2028 abgelöst sein. Lohn und Buchhaltung bleiben in der Fachsoftware.\n\nStufe 1 · Fundament (Q1 2027)\n| Paket | Inhalt | Richtwert |\n|---|---|---|\n| 1 · Portal Grundversion | Login für Mandanten, Belegupload, Fristenkalender | CHF 18'500 (offeriert) |\n| 1b · Leistungserfassung | Zeit, Spesen, Verrechnung an Mandanten | CHF 4'200, mit KontorPlus-Import rund 6'100 |\n| 1c · Einführung | Schulung aller 14 Mitarbeitenden in Affoltern | CHF 3'000 bis 4'500 |\n\nStufe 2 · Steuern und Lernen (H2 2027)\nPaket 2 · Fristenüberwachung: Steuerfristen je Mandant, Erinnerungen per Mail. Richtwert CHF 5'000 bis 7'500. Wunsch von Nadia Keller: „das Portal soll selber merken, wenn ein Beleg fehlt“.\nPaket 3 · Projekt Kompass: Auswertung der Rentabilität je Mandant, Richtwert 9'800, in der ersten Schätzung noch 11'200.\n\nZusammen\nAlle Pakete: rund CHF 40'500 bis 46'400 über die nächsten zwei Jahre. Die Treuhand Albis plant selbst 12'000 pro Jahr für Wartung ein. Rückfragen an beat.wymann@treuhand-albis.ch oder 044 761 22 90.",
+   "secrets": [
+    {
+     "text": "Treuhand Albis GmbH",
+     "type": "ORG"
+    },
+    {
+     "text": "Treuhand Albis",
+     "type": "ORG"
+    },
+    {
+     "text": "Beat Wymann",
+     "type": "PERSON"
+    },
+    {
+     "text": "KontorPlus",
+     "type": "ORG"
+    },
+    {
+     "text": "Mitte 2028",
+     "type": "DATE"
+    },
+    {
+     "text": "Q1 2027",
+     "type": "DATE"
+    },
+    {
+     "text": "CHF 18'500",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "CHF 4'200",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "6'100",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Affoltern",
+     "type": "PLACE"
+    },
+    {
+     "text": "CHF 3'000",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "4'500",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "H2 2027",
+     "type": "DATE"
+    },
+    {
+     "text": "CHF 5'000",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "7'500",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Nadia Keller",
+     "type": "PERSON"
+    },
+    {
+     "text": "Projekt Kompass",
+     "type": "PROJECT"
+    },
+    {
+     "text": "9'800",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "11'200",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "CHF 40'500",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "46'400",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "12'000",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "beat.wymann@treuhand-albis.ch",
+     "type": "EMAIL"
+    },
+    {
+     "text": "044 761 22 90",
+     "type": "PHONE"
+    }
+   ]
+  },
+  {
+   "id": "l02",
+   "style": "hochdeutsch_transkript",
+   "text": "Gut, dann fangen wir an. Also, äh, zuerst zum Stand beim Neubau in Buochs. Der Bauherr, also der Herr Severin Odermatt, hat gestern angerufen und gesagt, äh, dass er mit dem Terminplan nicht zufrieden ist. Er will, dass der Rohbau bis Ende März steht, und nicht erst im Mai.\n\nDann, äh, die Statik. Die macht ja die Ingenieurbüro Gisler & Partner AG, und die Frau Livia Gisler hat mir geschrieben, dass sie die Pläne bis am 18. Dezember liefern. Das ist knapp, aber machbar. Das Honorar liegt bei 47'300 Franken, das ist etwa zehn Prozent über der Offerte.\n\nDann zum Projekt Seeblick. Da haben wir ein Problem mit der Gemeinde Stansstad, die wollen, äh, ein zusätzliches Gutachten zum Seeufer. Das kostet uns nochmal rund CHF 8'900. Der Marco Achermann klärt das ab und meldet sich bis Freitag.\n\nUnd dann noch, äh, Personelles. Die Ramona Zimmermann geht per 31.01.2027 in Mutterschaftsurlaub, ihre Projekte übernimmt der Pirmin, also Pirmin Christen. Er hat aber jetzt schon, äh, drei Projekte, das müssen wir im Auge behalten.\n\nZum Schluss noch das Budget. Für das nächste Jahr rechnen wir mit Investitionen von 1,4 Millionen, davon gehen 380'000 in die neue Werkhalle in Ennetbürgen. Die Bank, also die Nidwaldner Kantonalbank, hat das grundsätzlich schon genehmigt, der Vertrag kommt bis Mitte Januar. Fragen an mich unter 041 610 45 77. Gut, dann danke euch.",
+   "secrets": [
+    {
+     "text": "Buochs",
+     "type": "PLACE"
+    },
+    {
+     "text": "Severin Odermatt",
+     "type": "PERSON"
+    },
+    {
+     "text": "Ende März",
+     "type": "DATE"
+    },
+    {
+     "text": "Ingenieurbüro Gisler & Partner AG",
+     "type": "ORG"
+    },
+    {
+     "text": "Livia Gisler",
+     "type": "PERSON"
+    },
+    {
+     "text": "18. Dezember",
+     "type": "DATE"
+    },
+    {
+     "text": "47'300 Franken",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Projekt Seeblick",
+     "type": "PROJECT"
+    },
+    {
+     "text": "Gemeinde Stansstad",
+     "type": "ORG"
+    },
+    {
+     "text": "CHF 8'900",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Marco Achermann",
+     "type": "PERSON"
+    },
+    {
+     "text": "Ramona Zimmermann",
+     "type": "PERSON"
+    },
+    {
+     "text": "31.01.2027",
+     "type": "DATE"
+    },
+    {
+     "text": "Pirmin Christen",
+     "type": "PERSON"
+    },
+    {
+     "text": "Pirmin",
+     "type": "PERSON"
+    },
+    {
+     "text": "1,4 Millionen",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "380'000",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Ennetbürgen",
+     "type": "PLACE"
+    },
+    {
+     "text": "Nidwaldner Kantonalbank",
+     "type": "ORG"
+    },
+    {
+     "text": "Mitte Januar",
+     "type": "DATE"
+    },
+    {
+     "text": "041 610 45 77",
+     "type": "PHONE"
+    }
+   ]
+  },
+  {
+   "id": "l03",
+   "style": "gemischt_en",
+   "text": "Subject: Re: Steering Committee Follow-up, Rollout Phase 2\n\nHi all,\n\nthanks for the call today. Kurze Zusammenfassung der Action Items:\n\n1. Pricing: Fabienne Roth from Lumen Analytics AG confirmed the license fee of CHF 62'000 per year. The early-bird discount (minus 7'400) only applies if we sign before 30.11.2026.\n2. Pilot: The pilot at the Winterthur branch starts in Q2 2027. Owner is Dario Baumann, backup Selin Arslan.\n3. Data migration: The old system Archiva needs to be exported first. Estimated effort 120 hours, budget CHF 19'200.\n4. Legal: Our counsel, Dr. Ursula Hefti, wants a DPA before any data leaves the house. Deadline is the 15. Januar.\n\nOpen risk: Project Polaris depends on the same team, so if the migration slips, Polaris slips too. Budget for Polaris is 255'000, approved by the CFO, Thomas Leuenberger, last week.\n\nNext Steering Committee: Ende Februar in Zug. Please send your updates to dario.baumann@lumen-retail.ch by Friday.\n\nBest,\nDario\n\n> On Tue, Selin Arslan wrote:\n> Dario, kannst du bitte noch die IBAN für die Anzahlung schicken? Lumen braucht sie bis Ende Oktober.\n> CH44 0900 0000 8711 2233 4 ist die von der Finanzabteilung, aber bitte bestätigen.",
+   "secrets": [
+    {
+     "text": "Fabienne Roth",
+     "type": "PERSON"
+    },
+    {
+     "text": "Lumen Analytics AG",
+     "type": "ORG"
+    },
+    {
+     "text": "CHF 62'000",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "7'400",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "30.11.2026",
+     "type": "DATE"
+    },
+    {
+     "text": "Winterthur",
+     "type": "PLACE"
+    },
+    {
+     "text": "Q2 2027",
+     "type": "DATE"
+    },
+    {
+     "text": "Dario Baumann",
+     "type": "PERSON"
+    },
+    {
+     "text": "Selin Arslan",
+     "type": "PERSON"
+    },
+    {
+     "text": "Archiva",
+     "type": "ORG"
+    },
+    {
+     "text": "CHF 19'200",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Ursula Hefti",
+     "type": "PERSON"
+    },
+    {
+     "text": "15. Januar",
+     "type": "DATE"
+    },
+    {
+     "text": "Project Polaris",
+     "type": "PROJECT"
+    },
+    {
+     "text": "Polaris",
+     "type": "PROJECT"
+    },
+    {
+     "text": "255'000",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Thomas Leuenberger",
+     "type": "PERSON"
+    },
+    {
+     "text": "Ende Februar",
+     "type": "DATE"
+    },
+    {
+     "text": "Zug",
+     "type": "PLACE"
+    },
+    {
+     "text": "dario.baumann@lumen-retail.ch",
+     "type": "EMAIL"
+    },
+    {
+     "text": "Dario",
+     "type": "PERSON"
+    },
+    {
+     "text": "Lumen",
+     "type": "ORG"
+    },
+    {
+     "text": "Ende Oktober",
+     "type": "DATE"
+    },
+    {
+     "text": "CH44 0900 0000 8711 2233 4",
+     "type": "IBAN"
+    }
+   ]
+  },
+  {
+   "id": "l04",
+   "style": "mundart",
+   "text": "So, denn fange mer aa. Zerscht zum Hof z'Rothenthurm. Dr Alois Kälin het mer gseit, dass er dr Stall nüm wott bis im Herbscht umbaue, sondern grad im Früehlig. Är het au gfroggt, öb mer d'Offerte vo de Holzbau Steiner GmbH chönd aaluege, die isch bi 186'000 Franke.\n\nD'Martina, also d'Martina Schuler, macht ab em 3. März d'Bauleitig. Si het aber gseit, si brucht no öpper für d'Elektroplanig, und do hämmer a de Elektro Föhn AG dänkt. Dr Reto Föhn het scho zuegsait, er chunnt am Mäntig verbii.\n\nDenn s'Projekt Alpstei: Dört isch d'Bewilligung vo de Gmeind Oberiberg immer no nid do. Dr Gmeindsschriiber, dr Herr Ueli Betschart, seit, es duuret sicher bis Änd Januar. Mir verliered do pro Monet öppe 6'500 Franke.\n\nUnd no ganz churz: D'Bank, also d'Schwyzer Kantonalbank, will bis Mitti Dezember wüsse, öb mer dr Kredit vo 420'000 bruuched. Dr Pius Marty vo dr Bank isch erreichbar uf 041 819 33 21.\n\nUnd no öppis, wo nid use darf: Dr Alois wott dr Hof viellicht verchaufe, aber das weiss nume d'Martina und ich.",
+   "secrets": [
+    {
+     "text": "Rothenthurm",
+     "type": "PLACE"
+    },
+    {
+     "text": "Alois Kälin",
+     "type": "PERSON"
+    },
+    {
+     "text": "Holzbau Steiner GmbH",
+     "type": "ORG"
+    },
+    {
+     "text": "186'000 Franke",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Martina",
+     "type": "PERSON"
+    },
+    {
+     "text": "Martina Schuler",
+     "type": "PERSON"
+    },
+    {
+     "text": "3. März",
+     "type": "DATE"
+    },
+    {
+     "text": "Elektro Föhn AG",
+     "type": "ORG"
+    },
+    {
+     "text": "Reto Föhn",
+     "type": "PERSON"
+    },
+    {
+     "text": "Projekt Alpstei",
+     "type": "PROJECT"
+    },
+    {
+     "text": "Gmeind Oberiberg",
+     "type": "ORG"
+    },
+    {
+     "text": "Ueli Betschart",
+     "type": "PERSON"
+    },
+    {
+     "text": "Änd Januar",
+     "type": "DATE"
+    },
+    {
+     "text": "6'500 Franke",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Schwyzer Kantonalbank",
+     "type": "ORG"
+    },
+    {
+     "text": "Mitti Dezember",
+     "type": "DATE"
+    },
+    {
+     "text": "420'000",
+     "type": "AMOUNT"
+    },
+    {
+     "text": "Pius Marty",
+     "type": "PERSON"
+    },
+    {
+     "text": "041 819 33 21",
+     "type": "PHONE"
+    },
+    {
+     "text": "Alois",
+     "type": "PERSON"
+    }
+   ]
+  }
+ ]
+}

@@ -17,6 +17,9 @@ log = logging.getLogger("clausus.llm")
 class ChatClient:
     """Talks to one OpenAI-compatible endpoint. Content is never logged."""
 
+    retry_pause_s = 1.0
+    rate_limit_pause_s = 4.0
+
     def __init__(self, base_url: str, api_key: str, model: str, label: str,
                  http: httpx.Client | None = None) -> None:
         self._base_url = base_url.rstrip("/")
@@ -45,12 +48,24 @@ class ChatClient:
         """One chat completion, temperature 0. `step` is only used by the recorder."""
         body = {"model": model or self.model, "messages": messages,
                 "temperature": 0, "max_tokens": max_tokens}
-        try:
-            r = self._http.post(f"{self._base_url}/chat/completions", headers=self._headers(),
-                                json=body, timeout=180.0)
-        except httpx.HTTPError as e:
-            log.warning("%s chat unreachable: %s", self.label, type(e).__name__)
-            raise ClaususError("unreachable", f"{self.label} endpoint is not reachable.") from e
+        # A server error, a rate limit or a lost connection is retried once; a second failure
+        # fails closed. Other request errors (4xx) are never retried: they would fail the same way.
+        for attempt in (1, 2):
+            pause = self.retry_pause_s
+            try:
+                r = self._http.post(f"{self._base_url}/chat/completions", headers=self._headers(),
+                                    json=body, timeout=180.0)
+            except httpx.HTTPError as e:
+                log.warning("%s chat unreachable (attempt %d): %s", self.label, attempt, type(e).__name__)
+                if attempt == 2:
+                    raise ClaususError("unreachable", f"{self.label} endpoint is not reachable.") from e
+            else:
+                if attempt == 2 or (r.status_code < 500 and r.status_code != 429):
+                    break
+                log.warning("%s answered HTTP %d (attempt %d)", self.label, r.status_code, attempt)
+                if r.status_code == 429:
+                    pause = self.rate_limit_pause_s
+            time.sleep(pause)
         self._check(r)
         try:
             return r.json()["choices"][0]["message"]["content"]
