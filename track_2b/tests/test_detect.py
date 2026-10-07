@@ -155,3 +155,20 @@ def test_a_title_with_a_dot_stays():
 def test_short_date_without_year_is_a_rule(text, date):
     llm = ScriptedLLM('{"stellen":[]}', '{"personen":[]}', '{"namen":[]}')
     assert (date, "DATE") in [(s.text, s.type) for s in detect(text, llm)]
+
+
+def test_a_pronoun_from_any_model_pass_is_not_masked():
+    """Seen 07.10.2026 in the chat: the broad pass (70B) returned "sie" as SONSTIGES and the
+    person pass (8B) returned "sie" as a person. The vault then masked every later "sie"/"Sie",
+    and the answering model asked who [PERSON_1] was."""
+    text = "ich will aber, dass sie mehr unterteilt ist, nicht so grob. Er und ich sehen es."
+    llm = ScriptedLLM('{"stellen":[{"text":"sie","typ":"SONSTIGES"},{"text":"Er","typ":"PERSON"}]}',
+                      '{"personen":["sie","ich"]}', '{"namen":["es"]}')
+    assert detect(text, llm) == []
+
+
+def test_a_model_find_is_matched_as_a_whole_word_only():
+    """"Ott" must not mask the start of "Otto"; a genitive s still counts ("Otts Büro")."""
+    text = "Otto und Ott treffen sich in Otts Büro."
+    spans = detect_with_model(text, FakeLLM('{"stellen":[{"text":"Ott","typ":"PERSON"}]}'))
+    assert [(s.text, s.start) for s in spans] == [("Ott", text.index("Ott ")), ("Ott", text.index("Otts"))]

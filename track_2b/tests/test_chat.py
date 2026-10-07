@@ -84,3 +84,13 @@ def test_unknown_session_is_404(tmp_path):
     assert client.post("/chat/sessions/s-0000000000000000/messages", json={"text": "x"}).status_code == 404
     assert client.get("/chat/sessions/../../etc").status_code == 404
     assert seen == []
+
+
+def test_a_chat_message_leaves_a_receipt_that_says_it_came_from_the_chat(tmp_path):
+    client, _ = make(tmp_path, [PERSON, EMPTY_P, EMPTY_N, "ok [PERSON_1]"])
+    sid = client.post("/chat/sessions").json()["session_id"]
+    rid = client.post(f"/chat/sessions/{sid}/messages", json={"text": "Anna Keller ruft an."}).json()["receipt_id"]
+    assert rid.startswith("chat-")
+    r = client.get(f"/receipts/{rid}")
+    assert r.status_code == 200 and "chat" in r.json()["notes"]
+    assert rid in [x["run_id"] for x in client.get("/receipts").json()["receipts"]]

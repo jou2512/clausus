@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 log = logging.getLogger("clausus.app")
 
 _CLIENT_ERRORS = {"unsupported_image": 415, "hear_bad_audio": 422}
-_RUN_ID = re.compile(r"(?:redact|meeting|guardrail)-[0-9a-f]{12}")
+_RUN_ID = re.compile(r"(?:redact|meeting|guardrail|chat)-[0-9a-f]{12}")
 
 
 class KnownEntity(BaseModel):
@@ -606,7 +606,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         s.messages.append({"role": "assistant", "original": answer, "masked": answer_masked,
                            "model": req.answer_model or settings.llm_name, "invented": invented})
         sessions().save(s)
-        run_id = f"redact-{uuid.uuid4().hex[:12]}"
+        run_id = f"chat-{uuid.uuid4().hex[:12]}"
         write_receipt(Receipt(run_id=run_id, model=settings.llm_name,
                               placeholders=_placeholders(s.vault, spans), outgoing=outgoing,
                               notes=["chat", f"session {s.id}"]), settings.runs_dir)

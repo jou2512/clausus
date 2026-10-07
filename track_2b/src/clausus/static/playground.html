@@ -397,7 +397,8 @@ function md(src) {
     if ((m = line.match(/^\s*[-*•]\s+(.*)$/)) || (m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
       const kind = /^\s*\d/.test(line) ? "ol" : "ul";
       flushPara();
-      if (list !== kind) { flushList(); out.push(`<${kind}>`); list = kind; }
+      // A bullet list between "1." and "2." closes the <ol>; the next one keeps the model's number.
+      if (list !== kind) { flushList(); out.push(kind === "ol" ? `<ol start="${parseInt(line, 10)}">` : "<ul>"); list = kind; }
       out.push(`<li>${mdInline(m[1])}</li>`); continue;
     }
     if (list && /^\s{2,}\S/.test(raw)) { out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, `<br>${mdInline(line.trim())}</li>`); continue; }
@@ -671,7 +672,12 @@ function renderChat(messages) {
   }).join("") : '<p class="sub">No messages yet. Everything you write here is masked before the answering model sees it.</p>';
   const v = $("#view-chat"); v.scrollTop = v.scrollHeight;
 }
-function useVault(rows) { chatVault = Object.fromEntries(rows.map(r => [r.token, r])); byTok = chatVault; }
+function useVault(rows) {
+  chatVault = Object.fromEntries(rows.map(r => [r.token, r])); byTok = chatVault;
+  // The side panel shows this chat's vault, not the last playground run.
+  $("#map").innerHTML = rows.map(v => `<tr data-k="${esc(v.token)}"><td><span class="e tok ${v.type}">${esc(v.token)}</span></td><td class="orig"><span class="o">${esc(v.original)}</span></td><td class="srcs"></td></tr>`).join("");
+  $("#vnote").textContent = rows.length ? `${rows.length} placeholders in this chat` : "Empty until the first message.";
+}
 async function loadChats(select) {
   try {
     const b = await callClausus("chat/sessions", {});
@@ -700,6 +706,7 @@ async function sendChat() {
     const b = await callClausus(`chat/sessions/${encodeURIComponent(chatId)}/messages`, {method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({text, answer_model: $("#model").value, known_entities: knownEntities()})});
     $("#chatin").value = "";
+    showCalls(b, false);
     toast(`Masked ${b.vault.length} so far in this chat · answered in ${secs(b.timings.total_ms)}`);
     await loadChats(chatId);
   } catch (e) { toast("Not sent: " + e.message); }

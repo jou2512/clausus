@@ -61,13 +61,26 @@ PERSON_PROMPT = (
 )
 
 
+# Pronouns and articles never name anyone, yet a model returns them (07.10.2026, chat: "sie" from
+# the 70B broad pass and the 8B person pass). Masked once, the vault masks every later "Sie" too.
+FUNCTION_WORDS = {
+    "ich", "du", "er", "sie", "es", "wir", "ihr", "man", "mir", "mich", "dir", "dich", "uns", "euch",
+    "ihm", "ihn", "ihnen", "ihre", "ihrer", "ihren", "sein", "seine", "seiner", "der", "die", "das",
+    "dem", "den", "des", "ein", "eine", "einer", "einem", "einen", "dieser", "diese", "dieses",
+    "si", "är", "mer", "öich", "ihne", "en", "e", "i", "he", "she", "it", "we", "they", "you", "me",
+    "him", "her", "us", "them", "his", "their", "the", "a", "an",
+}
+
+
 def _locate(text: str, needle: str, span_type: str) -> list[Span]:
-    """Every occurrence of the model's answer in the original; nothing if it is not there."""
+    """Every whole-word occurrence of the model's answer in the original; nothing if it is not
+    there. A trailing genitive s still counts ("Otts Büro"), a longer word does not ("Otto")."""
     needle = needle.strip()
-    if len(needle) < 2:
+    if len(needle) < 2 or needle.casefold() in FUNCTION_WORDS:
         return []
+    pattern = re.compile(rf"(?<!\w){re.escape(needle)}(?=s?(?!\w))", re.IGNORECASE)
     return [Span(text=m.group(0), type=span_type, start=m.start(), end=m.end(), source="model")
-            for m in re.finditer(re.escape(needle), text, re.IGNORECASE)]
+            for m in pattern.finditer(text)]
 
 
 def detect_with_model(text: str, llm: ChatModel) -> list[Span]:
