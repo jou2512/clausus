@@ -40,17 +40,20 @@ class FlixTranscriber:
 
     Measured 01.10.2026 on an RTX 3070 (fp16): 2.8x real time, 3.1 GB model, peak 7.1 GB
     VRAM at batch 8. On CPU a 29-minute meeting did not finish in 90 minutes, so CPU is
-    for short clips only. Batch size defaults to 2 to stay well below 8 GB.
+    for short clips only.
+
+    Long recordings use Whisper's own long-form decoding, not the pipeline's chunked batches.
+    Measured 07.10.2026 on the same GPU with a 50 s recording: chunk_length_s=30 with
+    batch_size=2 hung in 4 of 4 runs (also with the 05.10 image, so not a library update);
+    long-form finished in about 14 s in 3 of 4 runs, the fourth hit a 120 s limit, cause unknown.
 
     An idle model is dropped from memory after HEAR_IDLE_UNLOAD_S seconds (default 600, 0 keeps
     it). Measured 07.10.2026: the loaded model held 6 GB VRAM on a desktop that was doing
     nothing with it. The next request loads it again from the disk cache.
     """
 
-    def __init__(self, model: str | None = None, batch_size: int | None = None,
-                 idle_unload_s: float | None = None) -> None:
+    def __init__(self, model: str | None = None, idle_unload_s: float | None = None) -> None:
         self.model = model or os.environ.get("HEAR_MODEL", DEFAULT_MODEL)
-        self.batch_size = batch_size or int(os.environ.get("HEAR_BATCH_SIZE", "2"))
         self.device = "unknown"
         self.ready = False
         self.error: str | None = None
@@ -92,7 +95,6 @@ class FlixTranscriber:
         cuda = torch.cuda.is_available()
         self.device = "cuda" if cuda else "cpu"
         return pipeline("automatic-speech-recognition", model=self.model,
-                        chunk_length_s=30, batch_size=self.batch_size,
                         device="cuda:0" if cuda else "cpu",
                         dtype=torch.float16 if cuda else torch.float32)
 

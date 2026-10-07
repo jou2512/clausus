@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from hear_service.app import create_app
 from hear_service.audio import SAMPLE_RATE, decode, ffmpeg_command
-from hear_service.engine import Segment
+from hear_service.engine import FlixTranscriber, Segment
 
 
 def wav_bytes(seconds: float = 1.0, rate: int = 44100) -> bytes:
@@ -240,3 +240,21 @@ def test_health_stays_ok_while_unloaded_and_says_so():
     t.unload_if_idle(now=t._last_used + 10_000)
     body = c.get("/health").json()
     assert body["status"] == "ok" and body["loaded"] is False
+
+
+def test_the_pipeline_uses_whisper_long_form_not_chunked_batches(monkeypatch):
+    """07.10.2026, RTX 3070: chunk_length_s=30 with batch_size=2 hung on a 50 s recording in 4 of 4
+    runs (also on the 05.10 image, so not a library update); Whisper's own long-form decoding
+    finished in about 14 s in 3 of 4 runs."""
+    import sys
+    import types
+
+    seen = {}
+    fake_torch = types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False),
+                                       float16="fp16", float32="fp32")
+    fake_tf = types.SimpleNamespace(pipeline=lambda task, **kw: seen.update(kw, task=task) or "pipe")
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "transformers", fake_tf)
+    assert FlixTranscriber(model="m")._build_pipe() == "pipe"
+    assert seen["task"] == "automatic-speech-recognition"
+    assert "chunk_length_s" not in seen and "batch_size" not in seen

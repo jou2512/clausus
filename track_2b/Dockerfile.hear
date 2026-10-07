@@ -9,7 +9,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-RUN pip install --no-cache-dir torch --index-url ${TORCH_INDEX_URL}
+# Pinned: an unpinned rebuild on 07.10.2026 silently moved transformers 5.18 -> 5.19.
+RUN pip install --no-cache-dir torch==2.14.1 --index-url ${TORCH_INDEX_URL}
 COPY pyproject.toml ./
 COPY src ./src
 RUN pip install --no-cache-dir ".[hear]" \
