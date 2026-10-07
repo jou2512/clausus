@@ -30,6 +30,15 @@ def found(text):
         ("das sind achtzgtuusig Stutz", ("achtzgtuusig Stutz", "AMOUNT")),
         ("Stand vom Projekt Alpenblick heute", ("Alpenblick", "PROJECT")),
         ("Stand des Projekts Nordlicht-2 heute", ("Nordlicht-2", "PROJECT")),
+        # Joel's chat 07.10.2026: the model saw these in clear, because the second half of a
+        # range and amounts without a currency had no rule, and the 70B pass left them out.
+        ("CHF 4'000 bis 7'000", ("7'000", "AMOUNT")),
+        ("ohne Import rund 5'800", ("5'800", "AMOUNT")),
+        ("plant selbst 10'000 im Jahr ein", ("10'000", "AMOUNT")),
+        ("Stufe 1 · Fundament (Q4 2026)", ("Q4 2026", "DATE")),
+        ("Start im H1 2027", ("H1 2027", "DATE")),
+        ("laut Workshop etwa Ende 2027", ("Ende 2027", "DATE")),
+        ("bis Mitte 2028 fertig", ("Mitte 2028", "DATE")),
     ],
 )
 def test_swiss_formats_are_found_with_exact_text_and_type(text, expected):
@@ -50,3 +59,9 @@ def test_plain_numbers_and_words_are_not_flagged():
 def test_vague_period_words_alone_and_non_amount_millions_are_not_flagged():
     assert found("Am Ende des Meetings und Mitte der Woche.") == set()
     assert found("Es gibt Millionen von Möglichkeiten.") == set()
+
+
+def test_a_range_is_masked_on_both_sides_and_small_counts_stay():
+    spans = found("Schulung aller rund 30 Mitarbeitenden: CHF 4'000 bis 7'000, Version 2.0, Q5 2026")
+    assert {("CHF 4'000", "AMOUNT"), ("7'000", "AMOUNT")} <= spans
+    assert not {s for s in spans if s[0] in ("30", "2.0") or "Q5" in s[0]}

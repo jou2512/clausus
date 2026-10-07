@@ -10,20 +10,20 @@
   --acc:#1f6f5c; --acc-soft:#e3f1ec; --warn:#a45a00; --warn-soft:#fbefdf; --bad:#a3322a; --bad-soft:#f9e4e1;
   --person:#2f5fd0; --person-bg:#e6edfc; --org:#7a3fc4; --org-bg:#efe6fb; --place:#127a6b; --place-bg:#e0f3ef;
   --amount:#9a5b00; --amount-bg:#fbf0dc; --date:#b03a6a; --date-bg:#fbe5ee; --contact:#4a5563; --contact-bg:#eceef1;
-  --other:#6b6a2a; --other-bg:#f2f1dc; --r:8px;
+  --other:#6b6a2a; --other-bg:#f2f1dc; --project:#0b6e99; --project-bg:#e1f1f8; --r:8px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#121212; --panel:#1b1b1a; --line:#2c2b29; --line2:#242422; --ink:#ecebe7; --ink2:#a9a7a1; --ink3:#73716c;
   --acc:#5cc3a6; --acc-soft:#1c2e28; --warn:#e3a14c; --warn-soft:#2e2416; --bad:#e8786d; --bad-soft:#2f1c1a;
   --person:#86a6f4; --person-bg:#1d2740; --org:#b892ee; --org-bg:#2a2040; --place:#5cc3b0; --place-bg:#16302b;
   --amount:#e3a14c; --amount-bg:#30250f; --date:#ec8fb3; --date-bg:#331b26; --contact:#aab3c0; --contact-bg:#23272d;
-  --other:#c9c682; --other-bg:#2b2a17;}}
+  --other:#c9c682; --other-bg:#2b2a17; --project:#6cc0e5; --project-bg:#15293a;}}
 :root[data-theme="dark"]{
   --bg:#121212; --panel:#1b1b1a; --line:#2c2b29; --line2:#242422; --ink:#ecebe7; --ink2:#a9a7a1; --ink3:#73716c;
   --acc:#5cc3a6; --acc-soft:#1c2e28; --warn:#e3a14c; --warn-soft:#2e2416; --bad:#e8786d; --bad-soft:#2f1c1a;
   --person:#86a6f4; --person-bg:#1d2740; --org:#b892ee; --org-bg:#2a2040; --place:#5cc3b0; --place-bg:#16302b;
   --amount:#e3a14c; --amount-bg:#30250f; --date:#ec8fb3; --date-bg:#331b26; --contact:#aab3c0; --contact-bg:#23272d;
-  --other:#c9c682; --other-bg:#2b2a17;}
+  --other:#c9c682; --other-bg:#2b2a17; --project:#6cc0e5; --project-bg:#15293a;}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--ink);font:14px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
@@ -67,12 +67,18 @@ header h1{font-size:15px;font-weight:600;margin:0 8px 0 0}
 .PLACE{color:var(--place);background:var(--place-bg)}.AMOUNT{color:var(--amount);background:var(--amount-bg)}
 .DATE{color:var(--date);background:var(--date-bg)}.PHONE,.EMAIL{color:var(--contact);background:var(--contact-bg)}
 .OTHER{color:var(--other);background:var(--other-bg)}
+.PROJECT{color:var(--project);background:var(--project-bg)}.IBAN,.AHV{color:var(--contact);background:var(--contact-bg)}
 .e.hot{outline:2px solid currentColor;outline-offset:1px}
 .unknown{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:var(--warn);background:var(--warn-soft);border-radius:4px;padding:2px 5px}
 .ans p{margin:0 0 10px}
 .ans h4{font-size:14px;font-weight:650;margin:12px 0 6px}
 .ans ul,.ans ol{margin:0 0 10px;padding-left:20px}
 .ans li{margin:2px 0}
+.ans hr,.msg hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+.tablewrap{overflow-x:auto;margin:0 0 10px}
+.ans table,.msg table{border-collapse:collapse;font-size:13px}
+.ans th,.ans td,.msg th,.msg td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.ans th,.msg th{background:var(--bg);font-weight:650}
 .ans code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--line2);border-radius:4px;padding:1px 4px}
 .ans strong{font-weight:650}.ans .lbl{font-size:12px;color:var(--ink3);margin-right:4px}
 .flag{margin:4px 14px 14px;font-size:12px;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:7px 10px}
@@ -385,26 +391,44 @@ function mdInline(s) {
           .replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>");
 }
 function md(src) {
+  // Paragraphs, headings, rules, pipe tables and nested lists: what Apertus actually writes.
+  // A list stays open across blank lines, so "1." ... "2." with bullets between keeps counting.
   const lines = esc(src).split(/\r?\n/);
-  const out = []; let list = null; let para = [];
+  const out = []; let para = []; const stack = [];  // open lists: {kind, indent}
   const flushPara = () => { if (para.length) { out.push(`<p>${mdInline(para.join("<br>"))}</p>`); para = []; } };
-  const flushList = () => { if (list) { out.push(`</${list}>`); list = null; } };
-  for (const raw of lines) {
-    const line = raw.trimEnd();
+  const closeList = () => out.push(`</li></${stack.pop().kind}>`);
+  const closeAll = () => { while (stack.length) closeList(); };
+  const cells = row => row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => mdInline(c.trim()));
+  const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l || "");
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i].replace(/\t/g, "    "), line = raw.trimEnd();
     let m;
-    if (!line.trim()) { flushPara(); flushList(); continue; }
-    if ((m = line.match(/^(#{1,4})\s+(.*)$/))) { flushPara(); flushList(); out.push(`<h4>${mdInline(m[2])}</h4>`); continue; }
-    if ((m = line.match(/^\s*[-*•]\s+(.*)$/)) || (m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
-      const kind = /^\s*\d/.test(line) ? "ol" : "ul";
-      flushPara();
-      // A bullet list between "1." and "2." closes the <ol>; the next one keeps the model's number.
-      if (list !== kind) { flushList(); out.push(kind === "ol" ? `<ol start="${parseInt(line, 10)}">` : "<ul>"); list = kind; }
-      out.push(`<li>${mdInline(m[1])}</li>`); continue;
+    if (!line.trim()) { flushPara(); continue; }
+    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flushPara(); closeAll(); out.push("<hr>"); continue; }
+    if ((m = line.match(/^(#{1,4})\s+(.*)$/))) { flushPara(); closeAll(); out.push(`<h4>${mdInline(m[2])}</h4>`); continue; }
+    if (line.trim().startsWith("|") && isSep(lines[i + 1])) {
+      flushPara(); closeAll();
+      const head = cells(line); i += 2; const body = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) body.push(cells(lines[i++]));
+      i--;
+      out.push(`<div class="tablewrap"><table><thead><tr>${head.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>${body.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+      continue;
     }
-    if (list && /^\s{2,}\S/.test(raw)) { out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, `<br>${mdInline(line.trim())}</li>`); continue; }
-    flushList(); para.push(line);
+    if ((m = raw.match(/^(\s*)([-*•]|\d+[.)])\s+(.*)$/))) {
+      const indent = m[1].length, kind = /\d/.test(m[2]) ? "ol" : "ul";
+      const open = () => { out.push(kind === "ol" ? `<ol start="${parseInt(m[2], 10)}">` : "<ul>"); stack.push({kind, indent}); };
+      flushPara();
+      while (stack.length && stack[stack.length - 1].indent > indent) closeList();
+      const top = stack[stack.length - 1];
+      if (!top || indent > top.indent) open();
+      else if (top.kind !== kind) { closeList(); open(); }
+      else out.push("</li>");
+      out.push(`<li>${mdInline(m[3])}`); continue;
+    }
+    if (stack.length && /^\s+\S/.test(raw)) { out.push(`<br>${mdInline(line.trim())}`); continue; }
+    closeAll(); para.push(line);
   }
-  flushPara(); flushList();
+  flushPara(); closeAll();
   return out.join("");
 }
 // Placeholders inside already-rendered HTML (tokens never contain < > or quotes).

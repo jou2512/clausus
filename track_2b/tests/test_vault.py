@@ -100,3 +100,15 @@ def test_assemble_reports_placeholders_missing_from_answer():
     v.token_for("Sursee", "PLACE")
     result = assemble("Nur [PLACE_1].", v)
     assert result.missing == ["[PERSON_1]"]
+
+
+def test_the_same_text_keeps_its_placeholder_even_when_a_later_pass_types_it_differently():
+    """Joel's chat 07.10.2026: "Brunnag" was [ORG_1]; a later "brunnag" came back from the model as a
+    project and got [PROJECT_2], so one company had two placeholders."""
+    from clausus.models import Span
+    v = Vault()
+    assert v.token_for("Brunnag", "ORG") == "[ORG_1]"
+    text = "das brunnag sieht"
+    masked = v.pseudonymize(text, [Span(text="brunnag", type="PROJECT", start=4, end=9, source="model")])
+    assert masked == "das [ORG_1] sieht"
+    assert v.tokens == [("[ORG_1]", "ORG")]

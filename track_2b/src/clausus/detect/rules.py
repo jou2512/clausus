@@ -41,6 +41,14 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.IGNORECASE)),
     # Spoken thousands in Swiss German or German words: "füfedriissgtuusig Franke", "achtzgtuusig Stutz".
     ("AMOUNT", re.compile(r"\b[\wäöü]+(?:tuusig|tausend)\s+(?:Franken|Franke|Stutz|CHF)\b", re.IGNORECASE)),
+    # A number with Swiss thousands separators is an amount even without a currency: the second half
+    # of "CHF 4'000 bis 7'000", "rund 5'800". Joel's chat 07.10.2026: the 70B pass left all of these
+    # in clear on a long text. Inside "CHF 4'000" the longer currency span wins (resolve_overlaps).
+    ("AMOUNT", re.compile(r"(?<![\d'’])\d{1,3}(?:['’]\d{3})+(?:[.,]\d{2})?(?![\d'’])")),
+    # Quarters, halves and year periods: "Q4 2026", "H1 2027", "Ende 2027", "Mitte 2028".
+    ("DATE", re.compile(r"\b(?:Q[1-4]|H[12])\s?(?:20)?\d{2}\b")),
+    ("DATE", re.compile(
+        r"\b(?:Anfang|anfangs|Afang|Mitte|Mitti|Ende|Änd|Ändi|Endi)\s+(?:19|20)\d{2}\b", re.IGNORECASE)),
     # The capitalised name right after "Projekt"/"Projekts"/"Project". Only the name is masked:
     # the word itself reveals nothing and keeps the masked text grammatical ("des Projekts [P]").
     ("PROJECT", re.compile(r"(?<=\bProjekt )[A-ZÄÖÜ][\wäöüÄÖÜ-]*")),

@@ -48,10 +48,12 @@ class Vault:
     def token_for(self, text: str, span_type: str) -> str:
         text = text.strip()
         keys = _significant(text)
-        same_type = [e for e in self._entries if e.type == span_type]
-        for e in same_type:
+        # The exact same text is the same thing, whatever type a later pass gives it ("brunnag" came
+        # back as a project after "Brunnag" was an organisation: two placeholders for one company).
+        for e in self._entries:
             if any(v.casefold() == text.casefold() for v in e.variants):
                 return e.token
+        same_type = [e for e in self._entries if e.type == span_type]
         related = [e for e in same_type if keys and (keys <= e.keys or e.keys <= keys)]
         if len(related) == 1:
             e = related[0]
