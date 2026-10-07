@@ -28,6 +28,9 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.IGNORECASE)),
     ("DATE", re.compile(rf"\b\d{{1,2}}\.\s?(?:{_MONTHS})(?:\s\d{{4}})?", re.IGNORECASE)),
     ("DATE", re.compile(r"\b(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])\.(?:\d{4}|\d{2})\b")),
+    # Day and month without a year: "am 2.12.", "bis 31.1." (Joel's live test 05.10.2026: only the
+    # model found "2.12."). Not followed by a digit, so full dates stay with the rule above.
+    ("DATE", re.compile(r"\b(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])\.(?!\d)")),
     # Periods tied to a month: "Ende November", "Änd Oktober", "anfangs Dezember", "Mitte Januar".
     # Benchmark 02.10.2026 (dev set): three of these leaked in every run.
     ("DATE", re.compile(

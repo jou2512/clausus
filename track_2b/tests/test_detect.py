@@ -119,3 +119,39 @@ def test_detect_without_model_raises_rather_than_silently_skipping():
 def test_span_model_type_validation():
     with pytest.raises(ValueError):
         Span(text="x", type="NONSENSE", start=0, end=1, source="rule")
+
+
+# --- 07.10.: type from another layer, Swiss German articles, short dates (Joel's live tests) ---
+
+def test_untyped_name_takes_the_type_another_layer_found():
+    """"Projekt Nordlicht" came back as OTHER from the names pass (plain list, as measured),
+    although the project rule had typed "Nordlicht" PROJECT."""
+    text = "Wir schliessen das Projekt Nordlicht ab."
+    llm = ScriptedLLM('{"stellen":[]}', '{"personen":[]}', '{"namen":["Projekt Nordlicht"]}')
+    assert [(s.text, s.type) for s in detect(text, llm)] == [("Projekt Nordlicht", "PROJECT")]
+
+
+def test_untyped_name_with_a_company_suffix_is_an_org():
+    text = "Die Meier und Söhne Bau AG liefert."
+    llm = ScriptedLLM('{"stellen":[]}', '{"personen":[]}', '{"namen":["Meier und Söhne Bau AG"]}')
+    assert [(s.text, s.type) for s in detect(text, llm)] == [("Meier und Söhne Bau AG", "ORG")]
+
+
+def test_swiss_german_article_is_not_part_of_the_name():
+    """"Dr Zenhäusern" in Swiss German is "der Zenhäusern"; "de Kellerei" is "die Kellerei"."""
+    text = "Dr Zenhäusern vo de Kellerei het aagrüeft."
+    llm = ScriptedLLM('{"stellen":[{"text":"Dr Zenhäusern","typ":"PERSON"},{"text":"de Kellerei","typ":"FIRMA"}]}',
+                      '{"personen":[]}', '{"namen":[]}')
+    assert [(s.text, s.type) for s in detect(text, llm)] == [("Zenhäusern", "PERSON"), ("Kellerei", "ORG")]
+
+
+def test_a_title_with_a_dot_stays():
+    text = "Dr. Lea Zimmermann kommt."
+    llm = ScriptedLLM('{"stellen":[{"text":"Dr. Lea Zimmermann","typ":"PERSON"}]}', '{"personen":[]}', '{"namen":[]}')
+    assert [s.text for s in detect(text, llm)] == ["Dr. Lea Zimmermann"]
+
+
+@pytest.mark.parametrize("text,date", [("Vorführung am 2.12. in Bern", "2.12."), ("bis 31.1. fertig", "31.1.")])
+def test_short_date_without_year_is_a_rule(text, date):
+    llm = ScriptedLLM('{"stellen":[]}', '{"personen":[]}', '{"namen":[]}')
+    assert (date, "DATE") in [(s.text, s.type) for s in detect(text, llm)]

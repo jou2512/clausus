@@ -9,6 +9,7 @@ import uuid
 from collections import Counter
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, File, Form, Header, UploadFile
@@ -196,6 +197,29 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "hear": hear_status,
         })
 
+    @app.get("/receipts")
+    def list_receipts() -> JSONResponse:
+        """Newest first, at most 200. Receipts never hold original text, so listing them is safe."""
+        items = []
+        for path in Path(settings.runs_dir).glob("*.json"):
+            if not _RUN_ID.fullmatch(path.stem):
+                continue
+            try:
+                r = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            calls = r.get("outgoing", [])
+            items.append({
+                "run_id": r.get("run_id", path.stem), "created_at": r.get("created_at", ""),
+                "model": r.get("model", ""), "destination": r.get("destination", ""),
+                "placeholders": len(r.get("placeholders", [])), "calls": len(calls),
+                "original_calls": sum(1 for c in calls if c.get("kind") == "original"),
+                "masked_calls": sum(1 for c in calls if c.get("kind") == "masked"),
+                "ms": sum(c.get("ms") or 0 for c in calls), "notes": r.get("notes", []),
+            })
+        items.sort(key=lambda i: i["created_at"], reverse=True)
+        return JSONResponse(content={"receipts": items[:200], "total": len(items)})
+
     @app.get("/receipts/{run_id}")
     def get_receipt(run_id: str) -> JSONResponse:
         """Read a receipt back. Ids are checked against a strict pattern so a request can
@@ -317,10 +341,25 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
 
     @app.get("/playground/config")
     def playground_config() -> JSONResponse:
+        host = lambda url: urlparse(url).hostname or url
         return JSONResponse(content={
             "answer_models": answer_models,
             "detection": list(dict.fromkeys([settings.llm_name, settings.fast_model])),
             "hear": "endpoint" if settings.stt_base_url else "local",
+            # What is configured, never a key: only whether one is set.
+            "endpoints": {
+                "detection": {"host": host(settings.llm_base_url), "models": list(dict.fromkeys(
+                    [settings.llm_name, settings.fast_model])), "key_set": bool(settings.llm_api_key)},
+                "answer": {"host": host(settings.llm_base_url), "models": answer_models},
+                "hear": ({"mode": "endpoint", "host": host(settings.stt_base_url), "model": settings.stt_model,
+                          "key_set": bool(settings.stt_api_key)} if settings.stt_base_url
+                         else {"mode": "local", "host": host(settings.hear_url)}),
+                "external": {"configured": settings.external_configured,
+                             "host": host(settings.external_base_url) if settings.external_base_url else "",
+                             "model": settings.external_model},
+                "guardrail": {"path": "/beta/litellm_basic_guardrail_api", "key_set": bool(settings.guardrail_key)},
+                "receipts_dir": settings.runs_dir,
+            },
         })
 
     @app.get("/playground/sample-slide.png")

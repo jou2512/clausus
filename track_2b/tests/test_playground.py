@@ -256,3 +256,34 @@ def test_page_has_unique_ids_and_the_known_names_field(tmp_path):
     assert len(ids) == len(set(ids)), sorted({i for i in ids if ids.count(i) > 1})
     for needed in ("input", "known", "model", "b-run", "b-again", "progress", "atts", "map", "calls"):
         assert f'id="{needed}"' in html, needed
+
+
+# --- receipts list and endpoints view (07.10.) ---
+
+def test_receipts_list_newest_first_without_originals(tmp_path):
+    client, _ = make_full(tmp_path, [PERSON_ONLY, '{"personen":[]}', '{"namen":[]}', "A [PERSON_1]",
+                                     PERSON_ONLY, '{"personen":[]}', '{"namen":[]}', "B [PERSON_1]"])
+    a = client.post("/playground/run", json={"text": "Anna Keller ruft an."}).json()["receipt_id"]
+    b = client.post("/playground/run", json={"text": "Anna Keller ruft an."}).json()["receipt_id"]
+    r = client.get("/receipts")
+    assert r.status_code == 200
+    items = r.json()["receipts"]
+    assert [i["run_id"] for i in items][:2] == [b, a]
+    first = items[0]
+    assert first["placeholders"] == 1 and first["calls"] == 4
+    assert first["original_calls"] == 3 and first["masked_calls"] == 1
+    assert "Ralph" not in r.text
+
+
+def test_config_lists_endpoints_but_never_keys(tmp_path):
+    env = {"LLM_BASE_URL": "https://a.test/v1", "LLM_API_KEY": "sekret-llm", "CLAUSUS_RUNS_DIR": str(tmp_path),
+           "STT_BASE_URL": "https://stt.example.ch/v1", "STT_API_KEY": "sekret-stt",
+           "CLAUSUS_GUARDRAIL_KEY": "sekret-guard"}
+    client = TestClient(create_app(settings=Settings.from_env(env)))
+    c = client.get("/playground/config")
+    body = c.json()
+    assert "sekret" not in c.text
+    e = body["endpoints"]
+    assert e["detection"]["host"] == "a.test" and e["detection"]["key_set"] is True
+    assert e["hear"] == {"mode": "endpoint", "host": "stt.example.ch", "model": "whisper-1", "key_set": True}
+    assert e["guardrail"]["key_set"] is True and e["external"]["configured"] is False

@@ -107,7 +107,23 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 .call .k{font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:2px 6px;height:fit-content}
 .k.orig{color:var(--warn);background:var(--warn-soft)}.k.mask{color:var(--acc);background:var(--acc-soft)}
 .call small{color:var(--ink3);display:block}
-.hidden{display:none}
+.hidden{display:none!important}
+.view{flex:1;min-height:0;overflow:auto;padding:18px 20px}
+.view h2{font-size:16px;margin:0 0 4px}
+.view .sub{color:var(--ink2);font-size:13px;margin:0 0 14px}
+.rtable{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.rtable th{text-align:left;font-weight:600;font-size:12px;color:var(--ink3);padding:8px 10px;border-bottom:1px solid var(--line)}
+.rtable td{padding:8px 10px;border-bottom:1px solid var(--line2)}
+.rtable tr.r{cursor:pointer}.rtable tr.r:hover td,.rtable tr.sel td{background:var(--line2)}
+.rtable .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.rdetail{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.rdetail pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line2);border-radius:6px;padding:8px;margin:6px 0 0;max-height:220px;overflow:auto}
+.ecards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.ecard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px}
+.ecard h3{font-size:13.5px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.ecard dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0}
+.ecard dt{color:var(--ink3)}.ecard dd{margin:0;word-break:break-word}
+.yes{color:var(--acc);font-weight:600}.no{color:var(--ink3)}
 .knownlbl{display:block;font-size:12.5px;font-weight:600;margin:0 0 6px}
 .knownlbl small{font-weight:400;color:var(--ink3)}
 #known{width:100%;min-height:72px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:12.5px/1.5 ui-monospace,Consolas,monospace;padding:8px;outline:none}
@@ -225,6 +241,17 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
       <button class="run" id="b-run">Run <kbd>Ctrl ↵</kbd></button>
     </div>
   </div>
+  <section class="view hidden" id="view-receipts">
+    <h2>Receipts</h2>
+    <p class="sub">Every run, newest first. A receipt lists every call that left Clausus. Original text is never stored, masked text is stored verbatim.</p>
+    <table class="rtable"><thead><tr><th>When</th><th>Run</th><th>Placeholders</th><th>Calls</th><th>Time</th><th>Note</th></tr></thead><tbody id="rlist"></tbody></table>
+    <div class="rdetail hidden" id="rdetail"></div>
+  </section>
+  <section class="view hidden" id="view-endpoints">
+    <h2>Endpoints</h2>
+    <p class="sub">What this Clausus talks to. Read only: keys live in <code>.env</code>, never in the browser. This page shows whether a key is set, never the key.</p>
+    <div class="ecards" id="ecards"></div>
+  </section>
 </main>
 
 <aside>
@@ -545,7 +572,61 @@ $("#atts").onclick = e => {
 document.querySelector(".composer").addEventListener("dragover", e => e.preventDefault());
 document.querySelector(".composer").addEventListener("drop", e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
 $("#model").onchange = () => { $("#dest").textContent = "→ " + $("#model").value; $("#p-answer").textContent = $("#model").value + " (Apertus, in this demo)"; };
-document.querySelectorAll("nav .navi").forEach(b => b.onclick = () => toast("Only the Playground exists yet."));
+const PLAY = [".pipe", ".stages", ".composer"];
+function showView(name) {
+  document.querySelectorAll("nav .navi").forEach(b => b.classList.toggle("on", b.dataset.view === name));
+  PLAY.forEach(sel => document.querySelector(sel).classList.toggle("hidden", name !== "playground"));
+  if (name !== "playground") $("#progress").classList.add("off");
+  $("#view-receipts").classList.toggle("hidden", name !== "receipts");
+  $("#view-endpoints").classList.toggle("hidden", name !== "endpoints");
+  if (name === "receipts") loadReceipts();
+  if (name === "endpoints") loadEndpoints();
+  document.querySelector("header h1").textContent = name[0].toUpperCase() + name.slice(1);
+}
+const when = iso => { try { return new Date(iso).toLocaleString([], {dateStyle: "short", timeStyle: "medium"}); } catch (e) { return iso; } };
+async function loadReceipts() {
+  $("#rdetail").classList.add("hidden");
+  $("#rlist").innerHTML = '<tr><td colspan="6" class="no">Loading…</td></tr>';
+  try {
+    const b = await callClausus("receipts", {});
+    $("#rlist").innerHTML = b.receipts.length ? b.receipts.map(r => `<tr class="r" data-id="${esc(r.run_id)}"><td>${esc(when(r.created_at))}</td><td class="mono">${esc(r.run_id)}</td><td>${r.placeholders}</td><td><span class="k orig">${r.original_calls} original</span> <span class="k mask">${r.masked_calls} masked</span></td><td>${secs(r.ms) || "–"}</td><td>${esc((r.notes || []).join(" · ").slice(0, 80))}</td></tr>`).join("")
+      : '<tr><td colspan="6" class="no">No runs yet.</td></tr>';
+  } catch (e) { $("#rlist").innerHTML = `<tr><td colspan="6" class="no">${esc(e.message)}</td></tr>`; }
+}
+async function showReceipt(id) {
+  document.querySelectorAll("#rlist tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.id === id));
+  const d = $("#rdetail"); d.classList.remove("hidden"); d.innerHTML = "Loading…";
+  try {
+    const r = await callClausus("receipts/" + encodeURIComponent(id), {});
+    d.innerHTML = `<b class="mono">${esc(r.run_id)}</b> · ${esc(when(r.created_at))} · destination ${esc(r.destination)}
+      <p class="note">Placeholders: ${r.placeholders.map(p => `<span class="e tok ${esc(p.type)}">${esc(p.token)}</span> <small>${esc(p.sources.join(", "))}</small>`).join(" ") || "none"}</p>
+      ${r.outgoing.map(o => `<div class="call"><span class="k ${o.kind === "original" ? "orig" : "mask"}">${esc(o.kind)}</span><div><b>${esc(o.step)}</b> → ${esc(o.model)}${o.ms != null ? " · " + secs(o.ms) : ""}<small>${esc(o.destination)}</small>${o.text ? `<pre>${esc(o.text)}</pre>` : `<small>original text, not stored</small>`}</div></div>`).join("")}
+      ${(r.notes || []).length ? `<p class="note">${r.notes.map(esc).join("<br>")}</p>` : ""}`;
+  } catch (e) { d.innerHTML = esc(e.message); }
+}
+async function loadEndpoints() {
+  const card = (title, rows) => `<div class="ecard"><h3>${title}</h3><dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl></div>`;
+  const yn = v => v ? '<span class="yes">set</span>' : '<span class="no">not set</span>';
+  try {
+    const e = (await callClausus("playground/config", {})).endpoints;
+    $("#ecards").innerHTML = [
+      card("1 · Detection <span class=\"k orig\">reads original</span>", [["Host", esc(e.detection.host)], ["Models", e.detection.models.map(esc).join("<br>")], ["Key", yn(e.detection.key_set)], ["Setup", "fixed, as measured"]]),
+      card("3 · Answer <span class=\"k mask\">placeholders</span>", [["Host", esc(e.answer.host)], ["Models", e.answer.models.map(esc).join("<br>")]]),
+      card("Hear (speech to text)", e.hear.mode === "local"
+        ? [["Mode", "local container"], ["Host", esc(e.hear.host)], ["Audio leaves?", '<span class="yes">no</span>']]
+        : [["Mode", "external endpoint"], ["Host", esc(e.hear.host)], ["Model", esc(e.hear.model)], ["Key", yn(e.hear.key_set)], ["Audio leaves?", "yes, listed in every receipt"]]),
+      card("External model", e.external.configured ? [["Host", esc(e.external.host)], ["Model", esc(e.external.model)], ["Gets", "masked text only, after the final check"]] : [["Status", '<span class="no">not configured</span>'], ["Default", "everything stays on Apertus"]]),
+      card("LiteLLM guardrail", [["Path", `<code>${esc(e.guardrail.path)}</code>`], ["Shared key", yn(e.guardrail.key_set)]]),
+      card("Receipts", [["Folder", `<code>${esc(e.receipts_dir)}</code>`], ["Contains", "calls, placeholders, masked text; never originals"]]),
+    ].join("");
+  } catch (err) { $("#ecards").innerHTML = esc(err.message); }
+}
+const VIEWS = ["playground", "chat", "receipts", "endpoints", "vault"];
+document.querySelectorAll("nav .navi").forEach((b, i) => {
+  b.dataset.view = VIEWS[i];
+  b.onclick = () => (["chat", "vault"].includes(b.dataset.view) ? toast("Chat and the encrypted vault come next.") : showView(b.dataset.view));
+});
+$("#rlist").onclick = e => { const tr = e.target.closest("tr.r"); if (tr) showReceipt(tr.dataset.id); };
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
   $("#p-vault").classList.toggle("hidden", t.dataset.t !== "vault");
