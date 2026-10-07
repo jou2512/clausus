@@ -214,3 +214,35 @@ def test_reanswer_refuses_unknown_model(tmp_path):
     n = len(seen)
     assert client.post("/playground/answer", json={"run_id": first["receipt_id"], "answer_model": "gpt-4o"}).status_code == 400
     assert len(seen) == n
+
+
+# --- known names, given upfront (07.10.) ---
+
+NOTHING = '{"stellen":[]}'
+
+
+def test_known_names_are_masked_even_when_detection_misses_them(tmp_path):
+    client, seen = make_full(tmp_path, [NOTHING, '{"personen":[]}', '{"namen":[]}', "Ruf [PERSON_1] bei [ORG_1] an."])
+    r = client.post("/playground/run", json={
+        "text": "Dr Zenhäusern vo de Kellerei Ried-Brig het aagrüeft.",
+        "known_entities": [{"text": "Silvan Zenhäusern", "type": "PERSON"}, {"text": "Kellerei Ried-Brig", "type": "ORG"}]})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert "Zenhäusern" not in b["masked"] and "Kellerei" not in b["masked"]
+    assert "Zenhäusern" not in json.dumps(seen[-1]["messages"], ensure_ascii=False)
+    assert b["answer"] == "Ruf Silvan Zenhäusern bei Kellerei Ried-Brig an."
+    assert {v["original"]: v["sources"] for v in b["vault"]}["Kellerei Ried-Brig"] == ["known"]
+
+
+def test_known_names_work_with_upload_too(tmp_path):
+    client, _ = make_full(tmp_path, [NOTHING, '{"personen":[]}', '{"namen":[]}', "ok"], hear_text="Signer chunnt.")
+    r = client.post("/playground/upload", data={"text": "", "known_entities": '[{"text": "Hans Signer", "type": "PERSON"}]'},
+                    files=[("audio", ("rec.webm", b"AUDIO", "audio/webm"))])
+    assert r.status_code == 200, r.text
+    assert "Signer" not in r.json()["masked"]
+
+
+def test_bad_known_entities_are_a_client_error(tmp_path):
+    client, seen = make_full(tmp_path, [])
+    r = client.post("/playground/upload", data={"text": "x", "known_entities": "not json"})
+    assert r.status_code == 400 and seen == []

@@ -57,6 +57,9 @@ class PlaygroundRequest(BaseModel):
     text: str = Field(min_length=1)
     instruction: str = ""
     answer_model: str = ""
+    # Names the user already knows are confidential (attendees, clients). Masked even when
+    # detection misses them, and every later mention with them (the vault's sweep).
+    known_entities: list[KnownEntity] = Field(default_factory=list)
 
 
 _TOKEN = re.compile(r"\[[A-Z]+_\d+\]")
@@ -332,12 +335,13 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         return None
 
     def playground(text: str, instruction: str, answer_model: str, outgoing: list[Outgoing],
-                   extra: dict[str, Any], started: float | None = None) -> JSONResponse:
+                   extra: dict[str, Any], started: float | None = None,
+                   known: list[KnownEntity] | None = None) -> JSONResponse:
         """The three stages in one call: what you said, what the answering model sees, what comes
         back. The vault table goes to the local page only, never to a model. Raises ClaususError."""
         started = started if started is not None else time.perf_counter()
         t0 = time.perf_counter()
-        vault, spans, masked = mask(text, [], outgoing)
+        vault, spans, masked = mask(text, known or [], outgoing)
         detect_ms = round((time.perf_counter() - t0) * 1000)
         answered = answer(vault, masked, instruction, answer_model, outgoing)
         placeholders = _placeholders(vault, spans)
@@ -419,7 +423,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         if (refused := bad_model(req.answer_model)) is not None:
             return refused
         try:
-            return playground(req.text, req.instruction, req.answer_model, [], {})
+            return playground(req.text, req.instruction, req.answer_model, [], {},
+                              known=req.known_entities)
         except ClaususError as e:
             return failure(e)
 
@@ -430,6 +435,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         text: Annotated[str, Form()] = "",
         instruction: Annotated[str, Form()] = "",
         answer_model: Annotated[str, Form()] = "",
+        known_entities: Annotated[str, Form()] = "[]",
     ) -> JSONResponse:
         """Typed text, a recording and slides together. Hearing runs first; if it fails,
         no slide and no text is sent anywhere."""
@@ -439,6 +445,11 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                                                           "detail": "Type text, record or add a file."})
         if (refused := bad_model(answer_model)) is not None:
             return refused
+        try:
+            known = [KnownEntity(**k) for k in json.loads(known_entities or "[]")]
+        except (ValueError, TypeError) as e:
+            return JSONResponse(status_code=400, content={"status": "error", "error": "bad_known_entities",
+                                                          "detail": str(e)})
         outgoing: list[Outgoing] = []
         notes: list[str] = []
         started = time.perf_counter()
@@ -467,7 +478,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                 parts.append("Folien:\n" + "\n\n".join(slides))
             return playground("\n\n".join(parts), instruction, answer_model, outgoing,
                               {"transcript": spoken, "slides": slides, "notes": notes,
-                               "hear_ms": hear_ms, "see_ms": see_ms}, started)
+                               "hear_ms": hear_ms, "see_ms": see_ms}, started, known=known)
         except ClaususError as e:
             return failure(e)
 

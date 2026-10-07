@@ -108,6 +108,10 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 .k.orig{color:var(--warn);background:var(--warn-soft)}.k.mask{color:var(--acc);background:var(--acc-soft)}
 .call small{color:var(--ink3);display:block}
 .hidden{display:none}
+.knownlbl{display:block;font-size:12.5px;font-weight:600;margin:0 0 6px}
+.knownlbl small{font-weight:400;color:var(--ink3)}
+#known{width:100%;min-height:72px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:12.5px/1.5 ui-monospace,Consolas,monospace;padding:8px;outline:none}
+#known:focus{border-color:var(--acc)}
 .progress{margin:10px 20px 0;height:30px;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink2)}
 .progress.off{display:none}
 .bar{flex:1;height:4px;border-radius:2px;background:var(--line2);overflow:hidden;position:relative}
@@ -228,6 +232,9 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
   <div class="pane" id="p-vault">
     <div class="lock"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 7V5a3 3 0 016 0v2M3.5 7h9v6.5h-9z"/></svg>
       <div>Only on this machine.<small>No model ever sees this table. Tap or hover a row to find it in all three columns.</small></div></div>
+    <label class="knownlbl" for="known">Known names <small>one per line, optional type: <code>Brunnag | ORG</code></small></label>
+    <textarea id="input" placeholder="Type or paste anything confidential, e.g. a meeting note, and ask something about it."></textarea>
+    <p class="note" style="margin-top:4px">Masked even if detection misses them, and every later mention too. Not saved in this browser.</p>
     <table id="map"></table>
     <button class="reveal" id="reveal">Hide originals</button>
     <p class="note" id="vnote"></p>
@@ -427,6 +434,19 @@ async function callClausus(url, opts) {
   if (!r.ok) { const err = new Error(b.detail || b.error || ("HTTP " + r.status)); err.failedClosed = true; throw err; }
   return b;
 }
+const TYPES = ["PERSON", "ORG", "PROJECT", "PLACE", "AMOUNT", "DATE", "PHONE", "EMAIL", "IBAN", "AHV", "OTHER"];
+function knownEntities() {
+  const out = [], bad = [];
+  for (const raw of $("#known").value.split(/\r?\n/)) {
+    const line = raw.trim(); if (!line) continue;
+    const [name, typ] = line.split("|").map(x => x.trim());
+    const type = (typ || "PERSON").toUpperCase();
+    if (!name || !TYPES.includes(type)) { bad.push(line); continue; }
+    out.push({text: name, type});
+  }
+  if (bad.length) toast(`Ignored ${bad.length} line(s) with an unknown type. Types: ${TYPES.join(", ")}`);
+  return out;
+}
 async function run() {
   const text = $("#input").value.trim();
   const media = att.audio || att.images.length;
@@ -450,12 +470,13 @@ async function run() {
     if (media) {
       const fd = new FormData();
       fd.append("text", text); fd.append("answer_model", answer_model);
+      fd.append("known_entities", JSON.stringify(knownEntities()));
       if (att.audio) fd.append("audio", att.audio, att.audioName);
       att.images.forEach(f => fd.append("images", f, f.name));
       b = await callClausus("playground/upload", {method: "POST", body: fd});
     } else {
       b = await callClausus("playground/run", {method: "POST", headers: {"Content-Type": "application/json"},
-                                               body: JSON.stringify({text, answer_model})});
+                                               body: JSON.stringify({text, answer_model, known_entities: knownEntities()})});
     }
   } catch (e) {
     clearInterval(stageTimer); stopProgress();
