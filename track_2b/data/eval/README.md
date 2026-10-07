@@ -69,3 +69,20 @@ a surname that is also part of a company name (counted twice), a vague Swiss Ger
 large public organisation.
 
 Run: `python -m clausus.eval --cases data/eval/holdout.json --runs 3 --out <dir>`
+
+## Baseline: Microsoft Presidio on the same held-out set (06.10.2026)
+
+Presidio 2.2.364 with `de_core_news_lg` 3.8.0, all predefined recognizers for German, scored with
+the same `score_case` (`eval_baselines/`).
+
+| | all 191 spans | types Presidio covers (person, org, place, e-mail, phone: 122) | Swiss German (53) | masked although not secret |
+|---|---:|---:|---:|---:|
+| Presidio | 51.8 % leaked | 32.8 % | 52.8 % | 12 |
+| Clausus | 2.6 % leaked | 2.5 % | 5.7 % | 2 |
+
+Read with care: Presidio has no recognizer for amounts or project names, and the IBAN/AHV numbers in
+this set have invalid check digits on purpose, which Presidio's checksum rejects. That is why the
+second column exists. Many of Presidio's person leaks are a surname mentioned again later ("Pedrini"
+after "Marco Pedrini"): it looks at each mention alone, while Clausus' vault masks every later
+mention of a name it already found. Presidio runs locally in about a second for the whole set;
+Clausus needs a model call per pass.
