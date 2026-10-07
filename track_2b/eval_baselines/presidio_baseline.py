@@ -13,9 +13,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "src"))
 
-from clausus.eval import aggregate, load_cases, score_case  # noqa: E402
-from presidio_analyzer import AnalyzerEngine, RecognizerRegistry  # noqa: E402
-from presidio_analyzer.nlp_engine import NlpEngineProvider  # noqa: E402
+from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
+from presidio_analyzer.nlp_engine import NlpEngineProvider
+
+from clausus.eval import aggregate, load_cases, score_case
 
 conf = {"nlp_engine_name": "spacy", "models": [{"lang_code": "de", "model_name": "de_core_news_lg"}]}
 nlp = NlpEngineProvider(nlp_configuration=conf).create_engine()
