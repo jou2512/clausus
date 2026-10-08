@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from clausus.detect.llm import is_ordinary_small
 from clausus.models import Span
 
 _STOP = {"ag", "gmbh", "sa", "sàrl", "sarl", "kg", "de", "vo", "von", "der", "die", "das", "dr",
@@ -90,23 +91,29 @@ class Vault:
     def _sweep(self, text: str) -> str:
         """Mask every later mention of something already known (SPEC: once found, always found)."""
         needles: dict[str, set[str]] = {}
+        spelled: dict[str, str] = {}  # how the name was found, to tell "Wil" from "wil" (= weil)
         for e in self._entries:
             for v in e.variants:
                 needles.setdefault(v.casefold(), set()).add(e.token)
+                spelled.setdefault(v.casefold(), v)
             if e.type == "PERSON":
                 for w in e.keys:
                     if len(w) >= 3:
                         needles.setdefault(w, set()).add(e.token)
         for needle in sorted(needles, key=len, reverse=True):
             tokens = needles[needle]
+            name = spelled.get(needle, needle)
             pattern = re.compile(rf"(?<![\w\[]){re.escape(needle)}(?![\w\]])", re.IGNORECASE)
             if len(tokens) == 1:
-                text = pattern.sub(next(iter(tokens)), text)
+                token = next(iter(tokens))
+                text = pattern.sub(lambda m, name=name, token=token: m.group(0)
+                                   if is_ordinary_small(name, m.group(0)) else token, text)
             else:
                 # Ambiguous short form ("Marco" with two Marcos): never guess which person,
                 # but never leave it open either. It gets a placeholder of its own.
                 # Benchmark 02.10.2026: leaving it open leaked it in 3 of 3 runs.
-                text = pattern.sub(lambda m: self._ambiguous_token(m.group(0)), text)
+                text = pattern.sub(lambda m, name=name: m.group(0) if is_ordinary_small(name, m.group(0))
+                                   else self._ambiguous_token(m.group(0)), text)
         return text
 
     def _ambiguous_token(self, word: str) -> str:
@@ -154,6 +161,10 @@ class Vault:
     def mapping(self) -> list[tuple[str, str, str]]:
         """(token, type, original) for the local playground. Never sent to a model."""
         return [(e.token, e.type, e.canonical) for e in self._entries]
+
+    def variants(self) -> dict[str, list[str]]:
+        """Every spelling found per placeholder, to align the local display. Never sent to a model."""
+        return {e.token: list(e.variants) for e in self._entries}
 
     def knows(self, token: str) -> bool:
         return any(e.token == token for e in self._entries)

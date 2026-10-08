@@ -242,3 +242,23 @@ def test_outline_labels_are_not_names():
                   '{"text":"Phase 1","typ":"PROJEKT"},{"text":"Modul 4b","typ":"SONSTIGES"},'
                   '{"text":"Treuhand Albis","typ":"FIRMA"}]}')
     assert [s.text for s in detect_with_model(text, llm)] == ["Treuhand Albis"]
+
+
+# Long Seerose text 08.10.2026: the place "Wil" also masked "wil" (= weil) in "wil üsi Datä nöd suuber
+# gsi sind". A lowercase occurrence that is an ordinary word is not the name; other lowercase
+# occurrences still are (transcripts are not always capitalised, see the test above).
+def test_a_place_name_does_not_mask_the_same_word_written_small_when_that_is_an_ordinary_word():
+    text = "Dä Brändli vo Wil zahlt nöd, wil d'Rechnig fehlt. Er gaht ins Büro vo Ins."
+    llm = FakeLLM('{"stellen":[{"text":"Wil","typ":"ORT"},{"text":"Ins","typ":"ORT"}]}')
+    spans = detect_with_model(text, llm)
+    assert [(s.text, text[s.start - 3:s.start]) for s in spans] == [("Wil", "vo "), ("Ins", "vo ")]
+
+
+def test_bodies_and_roles_without_a_name_are_no_names_in_any_pass():
+    """Same text: "Gmeind", "Geschäftsleitung", "Stadthuus" and "Rechenzentrum" came back from the
+    broad and the person pass too, not only from the names pass that had a generic list."""
+    text = "D'Gmeind wott's im Rechenzentrum, d'Geschäftsleitung chunnt is Stadthuus. Gmeind Uster zahlt."
+    llm = FakeLLM('{"stellen":[{"text":"Gmeind","typ":"FIRMA"},{"text":"Rechenzentrum","typ":"ORT"},'
+                  '{"text":"Geschäftsleitung","typ":"PERSON"},{"text":"Stadthuus","typ":"ORT"},'
+                  '{"text":"Gmeind Uster","typ":"FIRMA"}]}')
+    assert [s.text for s in detect_with_model(text, llm)] == ["Gmeind Uster"]

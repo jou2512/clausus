@@ -139,3 +139,10 @@ def test_a_spoken_amount_the_model_made_up_is_reported_too():
 def test_the_instruction_counts_as_a_source():
     from clausus.assemble import unsourced_numbers
     assert unsourced_numbers("Hier 150 Wörter.", ["Text", "Antworte in 150 Wörtern"]) == []
+
+
+def test_the_sweep_leaves_an_ordinary_small_word_that_looks_like_a_known_place():
+    text = "Dä vo Wil zahlt, wil d'Rechnig stimmt. Z'Wil isch's schön."
+    v = Vault()
+    masked = v.pseudonymize(text, spans_for(text, ("Wil", "PLACE")))
+    assert masked == "Dä vo [PLACE_1] zahlt, wil d'Rechnig stimmt. Z'[PLACE_1] isch's schön."

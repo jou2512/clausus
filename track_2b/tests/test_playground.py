@@ -297,3 +297,13 @@ def test_a_figure_the_answering_model_made_up_is_reported(tmp_path):
                                 "[PERSON_1] will [AMOUNT_1], ich schätze CHF 50'000 bis 15.11.2026."])
     b = client.post("/playground/run", json={"text": TEXT}).json()
     assert b["unsourced"] == ["CHF 50'000", "15.11.2026"]
+
+
+def test_split_original_keeps_a_multiword_name_whole_when_the_next_placeholder_follows_after_a_space():
+    """Seerose slide 08.10.2026: "Kessler Partner AG CHF 38'000" showed as "Kessler" | "Partner AG
+    CHF 38'000", because the single space between the two placeholders was found inside the name."""
+    original = "offen: Kessler Partner AG CHF 38'000 bis Ende"
+    masked = "offen: [ORG_1] [AMOUNT_1] bis Ende"
+    segs = split_original(original, masked, {"[ORG_1]": ["Kessler Partner AG"], "[AMOUNT_1]": ["CHF 38'000"]})
+    assert [(s["text"], s["token"]) for s in segs if s["token"]] == [
+        ("Kessler Partner AG", "[ORG_1]"), ("CHF 38'000", "[AMOUNT_1]")]

@@ -79,15 +79,37 @@ OUTLINE_LABEL = re.compile(
     r"\s*\d+[a-z]?", re.IGNORECASE)
 
 
+# Words a model sometimes returns as "names" although they name nothing specific: generic nouns,
+# and bodies, roles and public buildings without a name. Long Seerose text 08.10.2026: "Gmeind",
+# "Geschäftsleitung", "Stadthuus" and "Rechenzentrum" came back from all three passes, so the list
+# applies to every pass. "Gmeind Uster" or "Stadthaus Uster" still count, they carry a name.
+GENERIC = {"kunde", "kunden", "team", "bank", "projekt", "firma", "filiale", "büro", "buero",
+           "firmen", "unternehmen", "gemeinde", "stadt", "kanton", "abteilung", "verwaltung",
+           "gmeind", "gmeinde", "gemeinderat", "gmeindrat", "stadtrat", "geschäftsleitung",
+           "gschäftsleitig", "geschäftsführung", "verwaltungsrat", "vorstand", "stadthaus",
+           "stadthuus", "gemeindehaus", "rathaus", "rechenzentrum"}
+
+# Places and first names that are an ordinary word when written small: "wil" (= weil), "ins", "au"
+# (= auch), "baden", "will". Long Seerose text 08.10.2026: the place "Wil" masked "wil üsi Datä".
+# Other names still match in lower case, because transcripts are not always capitalised.
+ORDINARY_WHEN_SMALL = {"wil", "ins", "au", "baden", "rain", "bad", "will", "rosa"}
+
+
+def is_ordinary_small(name: str, found: str) -> bool:
+    """A capitalised name found written small, where the small form is an ordinary word."""
+    return name[:1].isupper() and found.islower() and found.casefold() in ORDINARY_WHEN_SMALL
+
+
 def _locate(text: str, needle: str, span_type: str) -> list[Span]:
     """Every whole-word occurrence of the model's answer in the original; nothing if it is not
     there. A trailing genitive s still counts ("Otts Büro"), a longer word does not ("Otto")."""
     needle = needle.strip()
-    if len(needle) < 2 or needle.casefold() in FUNCTION_WORDS or OUTLINE_LABEL.fullmatch(needle):
+    if (len(needle) < 2 or needle.casefold() in FUNCTION_WORDS or needle.casefold() in GENERIC
+            or OUTLINE_LABEL.fullmatch(needle)):
         return []
     pattern = re.compile(rf"(?<!\w){re.escape(needle)}(?=s?(?!\w))", re.IGNORECASE)
     return [Span(text=m.group(0), type=span_type, start=m.start(), end=m.end(), source="model")
-            for m in pattern.finditer(text)]
+            for m in pattern.finditer(text) if not is_ordinary_small(needle, m.group(0))]
 
 
 def detect_with_model(text: str, llm: ChatModel) -> list[Span]:
@@ -129,11 +151,6 @@ NAMES_PROMPT = (
     'Antworte NUR mit JSON: {"namen":["<wie im Text>"]}\n\nTEXT:\n'
 )
 
-# Words a model sometimes returns as "names" although they name nothing specific.
-GENERIC = {"kunde", "kunden", "team", "bank", "projekt", "firma", "filiale", "büro", "buero",
-           "firmen", "unternehmen", "gemeinde", "stadt", "kanton", "abteilung", "verwaltung"}
-
-
 def detect_names(text: str, llm: ChatModel, model: str | None = None) -> list[Span]:
     """Narrow pass for organisations, projects and places. Measured 02.10.2026 on a slide:
     the broad pass on 70B left out "Nordlicht" and "Winterthur" (2 of 2 runs); this pass
@@ -150,8 +167,6 @@ def detect_names(text: str, llm: ChatModel, model: str | None = None) -> list[Sp
             needle = str(item.get("text", ""))
             span_type = TYPE_MAP.get(str(item.get("typ", "")).strip().upper(), "OTHER")
         else:
-            continue
-        if needle.strip().casefold() in GENERIC:
             continue
         spans.extend(_locate(text, needle, span_type))
     return spans

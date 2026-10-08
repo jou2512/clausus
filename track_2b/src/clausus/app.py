@@ -82,10 +82,26 @@ _DEFAULT_INSTRUCTION = ("Antworte hilfreich und knapp auf die Nachricht. Platzha
                         "erfinde keine neuen.")
 
 
-def split_original(original: str, masked: str) -> list[dict[str, str | None]]:
+def _literal_end(original: str, literal: str, pos: int, known: set[str]) -> int:
+    """Where the original of a placeholder ends: the first place the following literal text
+    starts. A short literal (one space) can also sit inside a multi-word name ("Kessler Partner
+    AG"), so a cut that leaves a spelling the vault knows wins over the first match."""
+    end = original.find(literal, pos + 1)
+    candidate = end
+    while known and candidate != -1:
+        if original[pos:candidate].casefold() in known:
+            return candidate
+        candidate = original.find(literal, candidate + 1)
+    return end
+
+
+def split_original(original: str, masked: str,
+                   variants: dict[str, list[str]] | None = None) -> list[dict[str, str | None]]:
     """Align the masked text back to what was really said, so the playground can show
     which words became which placeholder ("Brunner" stays "Brunner", not the canonical name).
-    The literal text between placeholders is identical in both; the gaps are the originals."""
+    The literal text between placeholders is identical in both; the gaps are the originals.
+    `variants` (token -> spellings found, from the vault) settles cuts a short literal leaves open."""
+    variants = variants or {}
     parts = _TOKEN.split(masked)
     tokens = _TOKEN.findall(masked)
     segs: list[dict[str, str | None]] = []
@@ -102,7 +118,8 @@ def split_original(original: str, masked: str) -> list[dict[str, str | None]]:
         elif not literal:
             end = pos  # adjacent placeholders: the next one takes the shared text
         else:
-            end = original.find(literal, pos + 1) if i < len(tokens) - 1 else original.rfind(literal)
+            known = {v.casefold() for v in variants.get(token, [])}
+            end = _literal_end(original, literal, pos, known) if i < len(tokens) - 1 else original.rfind(literal)
             if end < pos:
                 return [{"text": original, "token": None}]
         if end > pos:
@@ -419,7 +436,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         return JSONResponse(content={
             **extra,
             "timings": timings,
-            "original_segments": split_original(text, masked),
+            "original_segments": split_original(text, masked, vault.variants()),
             "masked": masked,
             **answered,
             "vault": [{"token": t, "type": ty, "original": o, "sources": sources.get(t, [])}
@@ -609,7 +626,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         unsourced = unsourced_numbers(answer_masked, [m["content"] for m in history])
         answer = s.vault.restore(answer_masked)
         s.messages.append({"role": "user", "original": req.text, "masked": masked,
-                           "segments": split_original(req.text, masked)})
+                           "segments": split_original(req.text, masked, s.vault.variants())})
         s.messages.append({"role": "assistant", "original": answer, "masked": answer_masked,
                            "model": req.answer_model or settings.llm_name, "invented": invented,
                            "unsourced": unsourced})
@@ -619,7 +636,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                               placeholders=_placeholders(s.vault, spans), outgoing=outgoing,
                               notes=["chat", f"session {s.id}"]), settings.runs_dir)
         return JSONResponse(content={
-            "masked": masked, "segments": split_original(req.text, masked),
+            "masked": masked, "segments": split_original(req.text, masked, s.vault.variants()),
             "answer_masked": answer_masked, "answer": answer, "invented": invented, "unsourced": unsourced,
             "answer_model": req.answer_model or settings.llm_name,
             "vault": vault_rows(s.vault), "outgoing": [o.model_dump() for o in outgoing],
