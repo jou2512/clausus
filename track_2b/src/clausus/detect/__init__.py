@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from concurrent.futures import ThreadPoolExecutor
 
+from clausus.detect import candidates
 from clausus.detect.llm import ChatModel, detect_names, detect_persons, detect_with_model
 from clausus.detect.rules import find_rule_spans
 from clausus.models import Span
@@ -85,7 +86,8 @@ def _model_spans(part: str, offset: int, llm: ChatModel, person_model: str | Non
     return [s.model_copy(update={"start": s.start + offset, "end": s.end + offset}) for s in found]
 
 
-def detect(text: str, llm: ChatModel, person_model: str | None = None) -> list[Span]:
+def detect(text: str, llm: ChatModel, person_model: str | None = None,
+           candidate_check: bool | None = None) -> list[Span]:
     """All layers must run, on every section. If any model call fails, the error propagates: a
     half detection must never be treated as a complete one (fail closed)."""
     parts = sections(text)
@@ -96,5 +98,8 @@ def detect(text: str, llm: ChatModel, person_model: str | None = None) -> list[S
         with ThreadPoolExecutor(max_workers=4) as pool:
             for found in pool.map(lambda p: _model_spans(p[1], p[0], llm, person_model), parts):
                 spans += found
-    spans = [strip_article(s) for s in spans]
-    return resolve_overlaps(type_untyped(spans))
+    spans = resolve_overlaps(type_untyped([strip_article(s) for s in spans]))
+    # Spike 08.10.2026: second look at capitalised words left open, off by default.
+    if candidate_check if candidate_check is not None else candidates.enabled():
+        spans = resolve_overlaps(spans + candidates.check_candidates(text, spans, llm, model=person_model))
+    return spans
