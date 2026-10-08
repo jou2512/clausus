@@ -102,8 +102,15 @@ PROMPT = (
 )
 
 
-def check_candidates(text: str, covered: list[Span], llm: ChatModel, model: str | None = None,
-                     zipf: Callable[[str], float] | None = None) -> list[Span]:
+@dataclass
+class Verdict:
+    candidate: Candidate
+    name: bool | None  # None: the model gave no readable answer for this one (counted as no)
+    type: str = "OTHER"
+
+
+def ask_candidates(text: str, covered: list[Span], llm: ChatModel, model: str | None = None,
+                   zipf: Callable[[str], float] | None = None) -> list[Verdict]:
     """One call for all candidates. A failed call raises (fail closed, like every other pass)."""
     cands = find_candidates(text, covered, zipf)
     if not cands:
@@ -112,9 +119,9 @@ def check_candidates(text: str, covered: list[Span], llm: ChatModel, model: str 
     data = extract_json(llm.chat([{"role": "user", "content": PROMPT + listing}], model=model,
                                  step="detect_candidates"))
     answers = data.get("antworten", []) if isinstance(data, dict) else []
-    spans: list[Span] = []
+    verdicts = [Verdict(c, None) for c in cands]
     for a in answers:
-        if not isinstance(a, dict) or a.get("name") is not True:
+        if not isinstance(a, dict):
             continue
         try:
             nr = int(a.get("nr", 0))
@@ -122,10 +129,18 @@ def check_candidates(text: str, covered: list[Span], llm: ChatModel, model: str 
             continue
         if not 1 <= nr <= len(cands):  # nr 0 would silently pick the last candidate
             continue
-        cand = cands[nr - 1]
-        span_type = TYPE_MAP.get(str(a.get("typ", "")).strip().upper(), "OTHER")
-        spans.extend(_locate(text, cand.text, span_type))
-    return spans
+        verdicts[nr - 1] = Verdict(cands[nr - 1], a.get("name") is True,
+                                   TYPE_MAP.get(str(a.get("typ", "")).strip().upper(), "OTHER"))
+    return verdicts
+
+
+def spans_from(text: str, verdicts: list[Verdict]) -> list[Span]:
+    return [s for v in verdicts if v.name for s in _locate(text, v.candidate.text, v.type)]
+
+
+def check_candidates(text: str, covered: list[Span], llm: ChatModel, model: str | None = None,
+                     zipf: Callable[[str], float] | None = None) -> list[Span]:
+    return spans_from(text, ask_candidates(text, covered, llm, model, zipf))
 
 
 def enabled() -> bool:

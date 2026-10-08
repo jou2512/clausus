@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from clausus.assemble import assemble, unsourced_numbers
 from clausus.config import Settings
-from clausus.detect import detect
+from clausus.detect import candidates, detect, resolve_overlaps
 from clausus.errors import ClaususError
 from clausus.final_check import final_check
 from clausus.guardrail import GuardrailRequest, GuardrailStore
@@ -113,6 +113,11 @@ def split_original(original: str, masked: str) -> list[dict[str, str | None]]:
     if "".join(str(s["text"]) for s in segs) != original:
         return [{"text": original, "token": None}]
     return segs
+
+
+class CompareRequest(BaseModel):
+    text: str = Field(min_length=1)
+    known_entities: list[KnownEntity] = Field(default_factory=list)
 
 
 class MeetingRequest(BaseModel):
@@ -487,6 +492,42 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                               known=req.known_entities)
         except ClaususError as e:
             return failure(e)
+
+    @app.post("/playground/compare")
+    def playground_compare(req: CompareRequest) -> JSONResponse:
+        """Spike 08.10.2026: the same detection once without and once with the second look at
+        capitalised words left open, side by side. Masking only, no answering model."""
+        outgoing: list[Outgoing] = []
+        llm = Recorded(apertus, outgoing, "original")
+        try:
+            t0 = time.perf_counter()
+            base = detect(req.text, llm, person_model=settings.fast_model, candidate_check=False)
+            base_ms = round((time.perf_counter() - t0) * 1000)
+            t0 = time.perf_counter()
+            verdicts = candidates.ask_candidates(req.text, base, llm, model=settings.fast_model)
+            check_ms = round((time.perf_counter() - t0) * 1000)
+        except ClaususError as e:
+            return failure(e)
+        added = candidates.spans_from(req.text, verdicts)
+        both = resolve_overlaps(base + added)
+
+        def side(spans: list[Span]) -> dict[str, Any]:
+            vault = Vault()
+            vault.preload([(k.text, k.type) for k in req.known_entities])
+            masked = vault.pseudonymize(req.text, spans)
+            return {"masked": masked, "segments": split_original(req.text, masked),
+                    "vault": [{"token": t, "type": ty, "original": o} for t, ty, o in vault.mapping()]}
+
+        run_id = f"redact-{uuid.uuid4().hex[:12]}"
+        write_receipt(Receipt(run_id=run_id, model=settings.llm_name, placeholders=[], outgoing=outgoing,
+                              notes=["playground compare (spike: candidate check)"]), settings.runs_dir)
+        return JSONResponse(content={
+            "without": side(base), "with": side(both),
+            "candidates": [{"text": v.candidate.text, "sentence": v.candidate.sentence, "name": v.name,
+                            "type": v.type if v.name else None} for v in verdicts],
+            "timings": {"detect_ms": base_ms, "check_ms": check_ms},
+            "outgoing": [o.model_dump() for o in outgoing], "receipt_id": run_id,
+        })
 
     @app.post("/playground/upload")
     async def playground_upload(

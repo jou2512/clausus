@@ -297,3 +297,17 @@ def test_a_figure_the_answering_model_made_up_is_reported(tmp_path):
                                 "[PERSON_1] will [AMOUNT_1], ich schätze CHF 50'000 bis 15.11.2026."])
     b = client.post("/playground/run", json={"text": TEXT}).json()
     assert b["unsourced"] == ["CHF 50'000", "15.11.2026"]
+
+
+def test_compare_shows_masking_without_and_with_the_second_look(tmp_path, monkeypatch):
+    monkeypatch.setattr("clausus.detect.candidates._zipf_de", lambda w: 6.0 if w in ("Treffen", "Die") else 0.0)
+    replies = ['{"stellen":[]}', '{"personen":[]}', '{"namen":[]}',
+               '{"antworten":[{"nr":1,"name":true,"typ":"ORT"},{"nr":2,"name":false}]}']
+    client, _ = make(tmp_path, replies)
+    r = client.post("/playground/compare", json={"text": "Treffen in Oberwil mit Grüezi."})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["without"]["masked"] == "Treffen in Oberwil mit Grüezi."
+    assert b["with"]["masked"] == "Treffen in [PLACE_1] mit Grüezi."
+    assert [(c["text"], c["name"]) for c in b["candidates"]] == [("Oberwil", True), ("Grüezi", False)]
+    assert "detect_candidates" in [o["step"] for o in b["outgoing"]]
