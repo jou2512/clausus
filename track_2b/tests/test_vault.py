@@ -146,3 +146,26 @@ def test_the_sweep_leaves_an_ordinary_small_word_that_looks_like_a_known_place()
     v = Vault()
     masked = v.pseudonymize(text, spans_for(text, ("Wil", "PLACE")))
     assert masked == "Dä vo [PLACE_1] zahlt, wil d'Rechnig stimmt. Z'[PLACE_1] isch's schön."
+
+
+def test_a_project_found_with_its_label_is_masked_later_without_it():
+    """Trap set 08.10.2026: "Projekt Kleinhünige" was masked, a later "Kleinhünige zahlt" leaked."""
+    text = "Dr Go-live vom Projekt Kleinhünige isch verschobe. Kleinhünige zahlt spöter."
+    v = Vault()
+    masked = v.pseudonymize(text, spans_for(text, ("Projekt Kleinhünige", "PROJECT")))
+    assert "Kleinhünige" not in masked and masked.count("[PROJECT_1]") == 2
+
+
+def test_a_company_found_with_its_trade_words_is_masked_later_by_its_name():
+    """Same set: "Alpenblick Consulting GmbH" was masked, "die Offerte von Alpenblick" leaked."""
+    text = "Daniel vom Partner Alpenblick Consulting GmbH meint ja. Die Offerte von Alpenblick kommt."
+    v = Vault()
+    masked = v.pseudonymize(text, spans_for(text, ("Alpenblick Consulting GmbH", "ORG")))
+    assert "Alpenblick" not in masked and masked.count("[ORG_1]") == 2
+
+
+def test_a_company_name_made_of_ordinary_words_does_not_spread_to_them():
+    text = "Die Schweizerische Post liefert. Die schweizerische Lösung ist gut. Gemeinde Uster, gemeinde."
+    v = Vault()
+    masked = v.pseudonymize(text, spans_for(text, ("Schweizerische Post", "ORG"), ("Gemeinde Uster", "ORG")))
+    assert "schweizerische Lösung" in masked and masked.endswith("gemeinde.")

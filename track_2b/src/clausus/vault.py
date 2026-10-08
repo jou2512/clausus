@@ -28,6 +28,32 @@ def _significant(text: str) -> frozenset[str]:
     return sig or frozenset(words)
 
 
+# Trap set 08.10.2026: "Projekt Kleinhünige" and "Alpenblick Consulting GmbH" were masked, the later
+# "Kleinhünige zahlt" and "die Offerte von Alpenblick" leaked. The bare name is the same thing.
+# A company only gets a short form when everything after its first word is a legal form or a trade
+# word, so "Schweizerische Post" does not spread to "schweizerische" and "Gemeinde Uster" not to
+# "Gemeinde".
+_PROJECT_LABEL = re.compile(r"^(?:Projekt|Projekts|Project)\s+(\S.*)$")
+_TRADE_WORDS = {
+    "ag", "gmbh", "sa", "sàrl", "sarl", "kg", "ltd", "inc", "llc", "&", "co", "und", "partner", "consulting",
+    "informatik", "treuhand", "bau", "holding", "group", "gruppe", "solutions", "services", "technik",
+    "logistik", "digital", "engineering", "immobilien", "beratung", "software", "systems", "it", "media",
+    "design", "architekten", "electronics", "elektro", "transport", "management",
+}
+
+
+def _short_form(variant: str, span_type: str) -> str | None:
+    if span_type == "PROJECT":
+        m = _PROJECT_LABEL.match(variant.strip())
+        return m.group(1) if m else None
+    if span_type == "ORG":
+        words = variant.split()
+        if (len(words) >= 2 and words[0][:1].isupper() and len(words[0]) >= 4
+                and all(w.casefold().strip(".,") in _TRADE_WORDS for w in words[1:])):
+            return words[0]
+    return None
+
+
 @dataclass
 class _Entry:
     token: str
@@ -100,6 +126,12 @@ class Vault:
                 for w in e.keys:
                     if len(w) >= 3:
                         needles.setdefault(w, set()).add(e.token)
+        for e in self._entries:  # short forms last: they never take a needle another entry owns
+            for v in e.variants:
+                short = _short_form(v, e.type)
+                if short and short.casefold() not in needles:
+                    needles[short.casefold()] = {e.token}
+                    spelled[short.casefold()] = short
         for needle in sorted(needles, key=len, reverse=True):
             tokens = needles[needle]
             name = spelled.get(needle, needle)
