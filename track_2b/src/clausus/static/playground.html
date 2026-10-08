@@ -456,7 +456,7 @@ const toast = t => {
   const n = $("#toast"); n.textContent = t; n.classList.add("on");
   clearTimeout(toast.h); toast.h = setTimeout(() => n.classList.remove("on"), 3200);
 };
-const cols = [...document.querySelectorAll(".col")];
+const cols = [...document.querySelectorAll(".col")].filter(c => !c.closest("#view-compare"));  // a playground run must not leave the compare columns dimmed
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const setRun = (busy) => { const b = $("#b-run"); b.disabled = busy; b.firstChild.textContent = busy ? "Running… " : "Run "; };
 
