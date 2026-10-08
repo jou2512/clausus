@@ -101,3 +101,12 @@ def test_a_range_is_masked_on_both_sides_and_small_counts_stay():
     spans = found("Schulung aller rund 30 Mitarbeitenden: CHF 4'000 bis 7'000, Version 2.0, Q5 2026")
     assert {("CHF 4'000", "AMOUNT"), ("7'000", "AMOUNT")} <= spans
     assert not {s for s in spans if s[0] in ("30", "2.0") or "Q5" in s[0]}
+
+
+
+def test_a_name_after_frau_or_herr_is_a_person_and_the_title_stays():
+    """Trap set 08.10.2026: "d'Frau Lüthi" was found by no model pass."""
+    assert ("Lüthi", "PERSON") in found("ob d'Lohnabrächnig für d'Frau Lüthi stimmt")
+    assert ("Odermatt", "PERSON") in found("Bitte Herrn Odermatt informieren.")
+    assert ("Keller-Rüegg", "PERSON") in found("Frau Keller-Rüegg kommt.")
+    assert found("Meine Damen und Herren, die Frau des Hauses.") == set()

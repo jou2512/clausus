@@ -180,3 +180,12 @@ def test_a_word_released_by_the_organisation_is_not_swept_even_if_the_vault_know
     v.token_for("Rolf", "PERSON")
     masked = v.pseudonymize(text, [], keep_open={"zellweger logistik", "rolf"})
     assert masked == "Zellweger Logistik bringt's. [PERSON_1] bringt's."
+
+
+
+def test_a_company_with_a_generic_word_in_front_is_still_found_by_its_name():
+    """Trap set 08.10.2026: "Partner Alpenblick Consulting GmbH" was masked, "von Alpenblick" leaked."""
+    text = "Daniel vom Partner Alpenblick Consulting GmbH meint ja. Die Offerte von Alpenblick kommt."
+    v = Vault()
+    masked = v.pseudonymize(text, spans_for(text, ("Partner Alpenblick Consulting GmbH", "ORG")))
+    assert "Alpenblick" not in masked

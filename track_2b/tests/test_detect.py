@@ -270,3 +270,11 @@ def test_a_broken_unicode_escape_does_not_lose_the_whole_answer():
     digits). json.loads refused the whole list, and with it the detection of the text failed."""
     data = extract_json(r'{"personen": ["Gasser", "R\uegg", "M\u00fcller"]}')
     assert data["personen"][0] == "Gasser" and data["personen"][2] == "Müller"
+
+
+
+def test_a_first_name_after_a_dialect_article_joins_the_surname_found():
+    """Trap set 08.10.2026: in "S'Mägi Hotz vom Verwaltigsrat" only "Hotz" was found."""
+    text = "Rückfroge under em Tel. S'Mägi Hotz vom Verwaltigsrat will. d'Anna Brunner au."
+    llm = ScriptedLLM('{"stellen":[{"text":"Hotz","typ":"PERSON"}]}', '{"personen":["Brunner"]}', NO_NAMES)
+    assert [s.text for s in detect(text, llm) if s.type == "PERSON"] == ["Mägi Hotz", "Anna Brunner"]

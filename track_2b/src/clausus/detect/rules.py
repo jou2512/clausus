@@ -76,6 +76,11 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("PROJECT", re.compile(r"(?<=\bProjekt )[A-ZÄÖÜ][\wäöüÄÖÜ-]*")),
     ("PROJECT", re.compile(r"(?<=\bProjekts )[A-ZÄÖÜ][\wäöüÄÖÜ-]*")),
     ("PROJECT", re.compile(r"(?<=\bProject )[A-ZÄÖÜ][\wäöüÄÖÜ-]*")),
+    # A capitalised name after Frau/Herr/Herrn is a person; the title stays in clear, like "Projekt".
+    # Trap set 08.10.2026: "d'Frau Lüthi" was found by none of the three model passes.
+    ("PERSON", re.compile(r"(?<=\bFrau )[A-ZÄÖÜ][\wäöüÄÖÜ-]+")),
+    ("PERSON", re.compile(r"(?<=\bHerr )[A-ZÄÖÜ][\wäöüÄÖÜ-]+")),
+    ("PERSON", re.compile(r"(?<=\bHerrn )[A-ZÄÖÜ][\wäöüÄÖÜ-]+")),
 ]
 
 

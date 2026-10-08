@@ -48,6 +48,8 @@ def _short_form(variant: str, span_type: str) -> str | None:
         return m.group(1) if m else None
     if span_type == "ORG":
         words = variant.split()
+        while len(words) > 2 and words[0].casefold() in _TRADE_WORDS:  # "Partner Alpenblick …"
+            words = words[1:]
         if (len(words) >= 2 and words[0][:1].isupper() and len(words[0]) >= 4
                 and all(w.casefold().strip(".,") in _TRADE_WORDS for w in words[1:])):
             return words[0]

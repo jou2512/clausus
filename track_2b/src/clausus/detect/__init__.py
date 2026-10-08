@@ -32,6 +32,20 @@ def strip_article(s: Span) -> Span:
     return s.model_copy(update={"text": s.text[m.end():], "start": s.start + m.end()})
 
 
+# A capitalised word after a Swiss German article right before a person found: "S'Mägi Hotz",
+# "d'Anna Brunner". Trap set 08.10.2026: only "Hotz" was found and "Mägi" stayed in clear.
+_FIRST_NAME_BEFORE = re.compile(r"(?<!\w)[dDsS]['’]([A-ZÄÖÜ][\wäöüÄÖÜ-]+)\s+$")
+
+
+def join_first_name(text: str, s: Span) -> Span:
+    if s.type != "PERSON":
+        return s
+    m = _FIRST_NAME_BEFORE.search(text, max(0, s.start - 40), s.start)
+    if not m:
+        return s
+    return s.model_copy(update={"text": text[m.start(1):s.end], "start": m.start(1)})
+
+
 def type_untyped(spans: list[Span]) -> list[Span]:
     """The names pass returns a plain list (as measured), so its finds are OTHER. Such a span
     takes the type another layer found for the same place, or ORG for a company suffix.
@@ -104,7 +118,7 @@ def detect(text: str, llm: ChatModel, person_model: str | None = None, judge: bo
         with ThreadPoolExecutor(max_workers=4) as pool:
             for found in pool.map(lambda p: _model_spans(p[1], p[0], llm, person_model), parts):
                 tagged += found
-    tagged = [(layer, strip_article(s)) for layer, s in tagged]
+    tagged = [(layer, join_first_name(text, strip_article(s))) for layer, s in tagged]
     if judge:
         opened = judge_finds(text, tagged, llm, keep)
         tagged = [(layer, s) for layer, s in tagged
