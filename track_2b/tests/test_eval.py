@@ -103,3 +103,20 @@ def test_concat_joins_cases_into_long_texts_that_keep_every_secret():
     assert all(s.text in c.text for c in long for s in c.secrets)
     assert long[0].text.count("\n\n") == 2  # paragraphs, as a pasted document would have
     assert {c.id for c in cases} == {"c0", "c1", "c2", "c3", "c4", "c5"}  # input untouched
+
+
+def test_a_part_counts_only_where_the_secret_stood_not_anywhere_in_the_text():
+    """Trap set 08.10.2026: "Wuche" in "nächscht Wuche" made "zweit Wuche im Merz" a partial leak
+    although the date itself was fully masked. A part leaks only if it is left inside the secret."""
+    text = "Nächscht Wuche gaht's nöd. Termin isch di zweit Wuche im Merz."
+    c = case(text, ("zweit Wuche im Merz", "DATE"))
+    r = score_case(c, "Nächscht Wuche gaht's nöd. Termin isch di [DATE_1].", 1, [])
+    assert r.leaks == [] and r.partial == []
+    left = score_case(c, "Nächscht Wuche gaht's nöd. Termin isch di zweit Wuche im [DATE_1].", 1, [])
+    assert [s.text for s in left.partial] == ["zweit Wuche im Merz"]
+
+
+def test_a_named_body_with_only_the_name_masked_is_no_leak():
+    c = case("D'Gmeind Uster zahlt, d'Stadt Wetzikon nöd.", ("Gmeind Uster", "ORG"), ("Stadt Wetzikon", "ORG"))
+    r = score_case(c, "D'Gmeind [PLACE_1] zahlt, d'Stadt [PLACE_2] nöd.", 2, [])
+    assert r.leaks == [] and r.partial == []

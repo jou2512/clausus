@@ -46,11 +46,18 @@ def extract_json(reply: str) -> Any:
     if start != -1 and end > start:
         candidates.append(reply[start:end + 1])
     for c in candidates:
-        try:
-            return json.loads(c)
-        except ValueError:
-            continue
+        # "R\uegg" for "Rüegg" (8B person pass, trap set 08.10.2026): a \u without four hex digits
+        # made the whole list unreadable. The broken escape becomes a literal backslash, so that one
+        # name no longer matches the text, but every other name in the answer survives.
+        for attempt in (c, _BAD_UNICODE_ESCAPE.sub(r"\\\\u", c)):
+            try:
+                return json.loads(attempt)
+            except ValueError:
+                continue
     raise ClaususError("bad_model_output", "The model did not return readable JSON.")
+
+
+_BAD_UNICODE_ESCAPE = re.compile(r"(?<!\\)\\u(?![0-9a-fA-F]{4})")
 
 
 PERSON_PROMPT = (

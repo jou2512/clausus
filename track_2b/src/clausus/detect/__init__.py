@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from concurrent.futures import ThreadPoolExecutor
 
+from clausus.detect.judge import judge as judge_finds
 from clausus.detect.llm import ChatModel, detect_names, detect_persons, detect_with_model
 from clausus.detect.rules import find_rule_spans
 from clausus.models import Span
@@ -79,22 +80,33 @@ def sections(text: str, size: int = SECTION_CHARS) -> list[tuple[int, str]]:
     return out
 
 
-def _model_spans(part: str, offset: int, llm: ChatModel, person_model: str | None) -> list[Span]:
-    found = detect_with_model(part, llm) + detect_persons(part, llm, model=person_model)
-    found += detect_names(part, llm)
-    return [s.model_copy(update={"start": s.start + offset, "end": s.end + offset}) for s in found]
+def _model_spans(part: str, offset: int, llm: ChatModel,
+                 person_model: str | None) -> list[tuple[str, Span]]:
+    """The three model passes on one section, each find tagged with its pass."""
+    found = [("broad", s) for s in detect_with_model(part, llm)]
+    found += [("person", s) for s in detect_persons(part, llm, model=person_model)]
+    found += [("names", s) for s in detect_names(part, llm)]
+    return [(layer, s.model_copy(update={"start": s.start + offset, "end": s.end + offset}))
+            for layer, s in found]
 
 
-def detect(text: str, llm: ChatModel, person_model: str | None = None) -> list[Span]:
+def detect(text: str, llm: ChatModel, person_model: str | None = None, judge: bool = False,
+           keep: list[str] | None = None) -> list[Span]:
     """All layers must run, on every section. If any model call fails, the error propagates: a
-    half detection must never be treated as a complete one (fail closed)."""
+    half detection must never be treated as a complete one (fail closed). With `judge`, Apertus
+    then rules on finds only one model pass made (detect/judge.py); `keep` are the organisation's
+    rules for what may stay open."""
     parts = sections(text)
-    spans = find_rule_spans(text)
+    tagged: list[tuple[str, Span]] = [("rule", s) for s in find_rule_spans(text)]
     if len(parts) == 1:
-        spans += _model_spans(text, 0, llm, person_model)
+        tagged += _model_spans(text, 0, llm, person_model)
     else:
         with ThreadPoolExecutor(max_workers=4) as pool:
             for found in pool.map(lambda p: _model_spans(p[1], p[0], llm, person_model), parts):
-                spans += found
-    spans = [strip_article(s) for s in spans]
-    return resolve_overlaps(type_untyped(spans))
+                tagged += found
+    tagged = [(layer, strip_article(s)) for layer, s in tagged]
+    if judge:
+        opened = judge_finds(text, tagged, llm, keep)
+        tagged = [(layer, s) for layer, s in tagged
+                  if layer == "rule" or s.type == "PERSON" or s.text.casefold() not in opened]
+    return resolve_overlaps(type_untyped([s for _, s in tagged]))

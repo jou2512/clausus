@@ -16,6 +16,7 @@ from fastapi import FastAPI, File, Form, Header, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from clausus.align import split_original
 from clausus.assemble import assemble, unsourced_numbers
 from clausus.config import Settings
 from clausus.detect import detect
@@ -25,6 +26,7 @@ from clausus.guardrail import GuardrailRequest, GuardrailStore
 from clausus.hear import EndpointHearClient, HearClient
 from clausus.llm import ApertusClient, ChatClient, Recorded
 from clausus.models import Span, SpanType
+from clausus.profile import Profile, ProfileStore, apply_never_mask, profile_from_policy
 from clausus.receipt import Outgoing, PlaceholderInfo, Receipt, write_receipt
 from clausus.router import Routes, route
 from clausus.see import IMAGE_TYPES, read_image
@@ -62,6 +64,22 @@ class ChatMessageRequest(BaseModel):
     known_entities: list[KnownEntity] = Field(default_factory=list)
 
 
+class ProfileWord(BaseModel):
+    text: str = Field(min_length=1)
+    type: SpanType = "OTHER"
+
+
+class ProfileBody(BaseModel):
+    name: str = "Standard"
+    keep: list[str] = Field(default_factory=list)
+    always_mask: list[dict[str, str]] = Field(default_factory=list)
+    never_mask: list[str] = Field(default_factory=list)
+
+
+class PolicyRequest(BaseModel):
+    policy: str = Field(min_length=1)
+
+
 class PlaygroundRequest(BaseModel):
     text: str = Field(min_length=1)
     instruction: str = ""
@@ -80,56 +98,6 @@ _SAMPLE_SLIDE = Path(__file__).parent / "static" / "sample-slide.png"
 _DEFAULT_INSTRUCTION = ("Antworte hilfreich und knapp auf die Nachricht. Platzhalter in eckigen Klammern "
                         "wie [PERSON_1] stehen für vertrauliche Angaben: übernimm sie wörtlich und "
                         "erfinde keine neuen.")
-
-
-def _literal_end(original: str, literal: str, pos: int, known: set[str]) -> int:
-    """Where the original of a placeholder ends: the first place the following literal text
-    starts. A short literal (one space) can also sit inside a multi-word name ("Kessler Partner
-    AG"), so a cut that leaves a spelling the vault knows wins over the first match."""
-    end = original.find(literal, pos + 1)
-    candidate = end
-    while known and candidate != -1:
-        if original[pos:candidate].casefold() in known:
-            return candidate
-        candidate = original.find(literal, candidate + 1)
-    return end
-
-
-def split_original(original: str, masked: str,
-                   variants: dict[str, list[str]] | None = None) -> list[dict[str, str | None]]:
-    """Align the masked text back to what was really said, so the playground can show
-    which words became which placeholder ("Brunner" stays "Brunner", not the canonical name).
-    The literal text between placeholders is identical in both; the gaps are the originals.
-    `variants` (token -> spellings found, from the vault) settles cuts a short literal leaves open."""
-    variants = variants or {}
-    parts = _TOKEN.split(masked)
-    tokens = _TOKEN.findall(masked)
-    segs: list[dict[str, str | None]] = []
-    pos = 0
-    if not original.startswith(parts[0]):
-        return [{"text": original, "token": None}]
-    if parts[0]:
-        segs.append({"text": parts[0], "token": None})
-    pos = len(parts[0])
-    for i, token in enumerate(tokens):
-        literal = parts[i + 1]
-        if i == len(tokens) - 1 and not literal:
-            end = len(original)
-        elif not literal:
-            end = pos  # adjacent placeholders: the next one takes the shared text
-        else:
-            known = {v.casefold() for v in variants.get(token, [])}
-            end = _literal_end(original, literal, pos, known) if i < len(tokens) - 1 else original.rfind(literal)
-            if end < pos:
-                return [{"text": original, "token": None}]
-        if end > pos:
-            segs.append({"text": original[pos:end], "token": token})
-        if literal:
-            segs.append({"text": literal, "token": None})
-        pos = end + len(literal)
-    if "".join(str(s["text"]) for s in segs) != original:
-        return [{"text": original, "token": None}]
-    return segs
 
 
 class MeetingRequest(BaseModel):
@@ -178,6 +146,27 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         if not store_box:
             store_box.append(SessionStore(vault_dir, load_or_create_key(settings.vault_key, vault_dir)))
         return store_box[0]
+
+    profile_box: list[ProfileStore] = []
+
+    def profile_store() -> ProfileStore:
+        if not profile_box:
+            profile_box.append(ProfileStore(vault_dir, load_or_create_key(settings.vault_key, vault_dir)))
+        return profile_box[0]
+
+    def profile() -> Profile:
+        """The organisation's rules. Without a saved profile the defaults apply, and no file or key
+        is created just by masking something."""
+        if not (Path(vault_dir) / "profile.bin").is_file():
+            return Profile()
+        return profile_store().load()
+
+    def find(text: str, llm: Any, p: Profile) -> list[Span]:
+        """Detection under the organisation's profile: its rules go to the judge, its never-mask
+        words are dropped (never persons)."""
+        spans = detect(text, llm, person_model=settings.fast_model, judge=settings.judge, keep=p.keep)
+        return apply_never_mask(spans, p)
+
     recent_ttl = 1800.0
     external = (ChatClient(settings.external_base_url, settings.external_api_key,
                            settings.external_model or settings.llm_name, "external", external_http)
@@ -193,9 +182,10 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                                                          "error": e.code, "detail": e.message})
 
     def mask(text: str, known: list[KnownEntity], outgoing: list[Outgoing]) -> tuple[Vault, list[Span], str]:
+        p = profile()
         vault = Vault()
-        vault.preload([(k.text, k.type) for k in known])
-        spans = detect(text, Recorded(apertus, outgoing, "original"), person_model=settings.fast_model)
+        vault.preload([(a["text"], a["type"]) for a in p.always_mask] + [(k.text, k.type) for k in known])
+        spans = find(text, Recorded(apertus, outgoing, "original"), p)
         return vault, spans, vault.pseudonymize(text, spans)
 
     models_cache: dict[str, Any] = {"at": 0.0, "models": None}
@@ -612,8 +602,10 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         outgoing: list[Outgoing] = []
         started = time.perf_counter()
         try:
-            s.vault.preload([(k.text, k.type) for k in req.known_entities])
-            spans = detect(req.text, Recorded(apertus, outgoing, "original"), person_model=settings.fast_model)
+            p = profile()
+            s.vault.preload([(a["text"], a["type"]) for a in p.always_mask]
+                            + [(k.text, k.type) for k in req.known_entities])
+            spans = find(req.text, Recorded(apertus, outgoing, "original"), p)
             masked = s.vault.pseudonymize(req.text, spans)
             history = [{"role": "system", "content": _CHAT_SYSTEM}]
             history += [{"role": m["role"], "content": m["masked"]} for m in s.messages]
@@ -644,6 +636,57 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "receipt_id": run_id,
         })
 
+    # --- the organisation's confidentiality profile (local page only, never sent as a whole) -------
+    def profile_or_error() -> tuple[Profile | None, JSONResponse | None]:
+        try:
+            return profile(), None
+        except ClaususError as e:
+            return None, JSONResponse(status_code=409, content={"status": "error", "error": e.code,
+                                                                "detail": e.message})
+
+    @app.get("/profile")
+    def profile_get() -> JSONResponse:
+        p, err = profile_or_error()
+        return err or JSONResponse(content={**p.to_dict(), "judge": settings.judge})
+
+    @app.put("/profile")
+    def profile_put(req: ProfileBody) -> JSONResponse:
+        p = Profile.from_dict(req.model_dump())
+        profile_store().save(p)
+        return JSONResponse(content=p.to_dict())
+
+    @app.post("/profile/keep")
+    def profile_keep(req: ProfileWord) -> JSONResponse:
+        """'Do not mask': this word never gets a placeholder again (persons excepted)."""
+        p, err = profile_or_error()
+        if err:
+            return err
+        p.keep_open(req.text)
+        profile_store().save(p)
+        return JSONResponse(content=p.to_dict())
+
+    @app.post("/profile/always")
+    def profile_always(req: ProfileWord) -> JSONResponse:
+        """'Always mask': known confidential, masked even when detection misses it."""
+        p, err = profile_or_error()
+        if err:
+            return err
+        p.always(req.text, req.type)
+        profile_store().save(p)
+        return JSONResponse(content=p.to_dict())
+
+    @app.post("/profile/from-policy")
+    def profile_policy(req: PolicyRequest) -> JSONResponse:
+        """Apertus reads the organisation's written policy and proposes a profile. Not saved:
+        the page shows the proposal and a person confirms it with PUT /profile."""
+        outgoing: list[Outgoing] = []
+        try:
+            proposal = profile_from_policy(req.policy, Recorded(apertus, outgoing, "original"))
+        except ClaususError as e:
+            return failure(e)
+        return JSONResponse(content={"proposal": proposal.to_dict(),
+                                     "outgoing": [o.model_dump() for o in outgoing]})
+
     @app.post("/beta/litellm_basic_guardrail_api")
     def litellm_guardrail(req: GuardrailRequest,
                           x_api_key: Annotated[str | None, Header()] = None,
@@ -671,8 +714,10 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         spans: list[Span] = []
         masked: list[str] = []
         try:
+            p = profile()
+            vault.preload([(a["text"], a["type"]) for a in p.always_mask])
             for text in req.texts:
-                found = detect(text, Recorded(apertus, outgoing, "original"), person_model=settings.fast_model)
+                found = find(text, Recorded(apertus, outgoing, "original"), p)
                 spans += found
                 masked.append(vault.pseudonymize(text, found))
         except ClaususError as e:

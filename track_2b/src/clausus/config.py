@@ -36,6 +36,8 @@ class Settings:
     # Chat sessions, encrypted at rest. Empty key: one is created next to the sessions (demo only).
     vault_dir: str = ""
     vault_key: str = field(default="", repr=False)
+    # Apertus judges finds only one model pass made (detect/judge.py).
+    judge: bool = False
 
     @property
     def external_configured(self) -> bool:
@@ -70,4 +72,5 @@ class Settings:
             stt_model=env.get("STT_MODEL", "").strip() or "whisper-1",
             vault_dir=env.get("CLAUSUS_VAULT_DIR", "").strip(),
             vault_key=env.get("CLAUSUS_VAULT_KEY", "").strip(),
+            judge=env.get("CLAUSUS_JUDGE", "").strip().lower() in ("1", "true", "yes", "on"),
         )

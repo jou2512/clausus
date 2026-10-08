@@ -1,0 +1,513 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "t01",
+      "style": "mundart",
+      "text": "Also, am Mäntig um nüüni hämmer mit de Gschäftsleitig zämegsässe. D'Anna Brunner vo de Kälin Haustechnik AG hät gseit, d'Offerte für s'Projekt Lindenhof chunnt erscht nächscht Wuche, wil de Einkauf no 3 Punkt offe hät. Ins Protokoll chunnt: de Rollout vo de neue Schnittstell zum Abacus isch verschobe. Au d'Rechnig vom letschte Monet isch no offe, das sind öppe füfzgtuusig Franke. De Brunner meint, mer söll das im Teams-Call am Fritig am zwei bespreche. Wil d'Deadline Ende Monet isch, macht s'HR s'Onboarding vo de zwei neue Lüüt parallel. D'Anna schickt d'Agenda und d'Pendenzeliste a anna.brunner@kaelin-haustechnik.ch, Rückfroge under 044 731 22 85. S'Mägi Hotz vom Verwaltigsrat will au e Kopie. Hotz meint, d'Gmeind müess zersch zuestimme. De Termin mit de Gmeind Uster isch am 14. November z'Uster. Lindenhof söll 20 Prozent günstiger werde als plant, d'Zahlig gaht uf CH93 0076 2011 6238 5295 7. Ins Excel trägt de Vorstand nüt ii, das macht d'Buechhaltig.",
+      "secrets": [
+        {
+          "text": "Anna Brunner",
+          "type": "PERSON"
+        },
+        {
+          "text": "Anna",
+          "type": "PERSON"
+        },
+        {
+          "text": "Brunner",
+          "type": "PERSON"
+        },
+        {
+          "text": "Kälin Haustechnik AG",
+          "type": "ORG"
+        },
+        {
+          "text": "Projekt Lindenhof",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Lindenhof",
+          "type": "PROJECT"
+        },
+        {
+          "text": "füfzgtuusig Franke",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "anna.brunner@kaelin-haustechnik.ch",
+          "type": "EMAIL"
+        },
+        {
+          "text": "044 731 22 85",
+          "type": "PHONE"
+        },
+        {
+          "text": "Mägi Hotz",
+          "type": "PERSON"
+        },
+        {
+          "text": "Hotz",
+          "type": "PERSON"
+        },
+        {
+          "text": "Gmeind Uster",
+          "type": "ORG"
+        },
+        {
+          "text": "Uster",
+          "type": "PLACE"
+        },
+        {
+          "text": "14. November",
+          "type": "DATE"
+        },
+        {
+          "text": "CH93 0076 2011 6238 5295 7",
+          "type": "IBAN"
+        }
+      ]
+    },
+    {
+      "id": "t02",
+      "style": "mundart",
+      "text": "Guet, när fö mer aa. Am Zischtig am drü hei mer mit em Vorstand gredt. Dr Ruedi Zaugg vo dr Zaugg & Wenger Treuhand GmbH seit, d'Abrächnig für ds Projekt Aareblick chunnt ersch nächschti Wuche, wil dr Verwaltigsrat ersch Änds Monet tagt. Ins Protokoll chunnt: d'Offerte vom Maler isch öppe 20 Prozänt z'tüür. Au ds Ticket wäg dr SharePoint-Ablag isch no offe, das het d'IT. D'Vreni Gerber nimmt d'Pendänzelischte uf u schickt d'Agenda a vreni.gerber@zw-treuhand.ch. Für Aareblick si zwöihundertachtzgtuusig Franke budgetiert. D'Gmeind Münsingen wott bis am 3. Dezämber e Antwort, ds Gspräch isch z'Belp. Dr Zaugg lütet am Fritig am nüüni zrügg, Nummere 031 721 48 09. D'Gerber fragt no, ob d'Lohnabrächnig für d'Frau Lüthi stimmt, AHV-Nummere 756.4821.3390.15. Wil ds HR das nid weiss, geit's a d'Gschäftsleitig. Zwöi Pünkt bliibe offe für dr nächscht Steering.",
+      "secrets": [
+        {
+          "text": "Ruedi Zaugg",
+          "type": "PERSON"
+        },
+        {
+          "text": "Zaugg",
+          "type": "PERSON"
+        },
+        {
+          "text": "Zaugg & Wenger Treuhand GmbH",
+          "type": "ORG"
+        },
+        {
+          "text": "Projekt Aareblick",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Aareblick",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Vreni Gerber",
+          "type": "PERSON"
+        },
+        {
+          "text": "Gerber",
+          "type": "PERSON"
+        },
+        {
+          "text": "vreni.gerber@zw-treuhand.ch",
+          "type": "EMAIL"
+        },
+        {
+          "text": "zwöihundertachtzgtuusig Franke",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "Gmeind Münsingen",
+          "type": "ORG"
+        },
+        {
+          "text": "Münsingen",
+          "type": "PLACE"
+        },
+        {
+          "text": "3. Dezämber",
+          "type": "DATE"
+        },
+        {
+          "text": "Belp",
+          "type": "PLACE"
+        },
+        {
+          "text": "031 721 48 09",
+          "type": "PHONE"
+        },
+        {
+          "text": "Lüthi",
+          "type": "PERSON"
+        },
+        {
+          "text": "756.4821.3390.15",
+          "type": "AHV"
+        }
+      ]
+    },
+    {
+      "id": "t03",
+      "style": "mundart",
+      "text": "Also, am Mittwuch am halbi elfi hän mir s'Board Meeting gha. D'Sandra Häfliger vo dr Rhyschiff Logistik AG het gsait, dr Go-live vom Projekt Kleinhünige isch verschobe, wil d'Schnittstell zum SAP no Fähler het. Ins Protokoll: drei Punkt bliibe offe. Au dr Stakeholder-Termin mit em Iikauf muess neu gsetzt wärde. Dr Beat Amrein us Luzärn het gseid, är chönn erscht d'zweit Wuche im Merz cho, well är vorher z'Sursee isch. D'Offerte isch bi achzgtuusig Franke, d'Gschäftsleitig wott aber 20 Prozänt weniger. Am Frytig am viäri chunnt s'NDA zrugg. D'Häfliger schickt d'Adresstabelle per Teams, nid per Mail. Kontakt: s.haefliger@rhyschiff-log.ch oder 061 693 17 40, dr Amrein under 041 921 55 36. Dr Sprint duuret zwei Wuche, s'Release kunnt Ändi Monet. Wäge dr Rechnig: Kleinhünige zahlt uf CH51 0900 0000 4071 2283 6, s'Abacus macht dr Rescht.",
+      "secrets": [
+        {
+          "text": "Sandra Häfliger",
+          "type": "PERSON"
+        },
+        {
+          "text": "Häfliger",
+          "type": "PERSON"
+        },
+        {
+          "text": "Rhyschiff Logistik AG",
+          "type": "ORG"
+        },
+        {
+          "text": "Projekt Kleinhünige",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Kleinhünige",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Beat Amrein",
+          "type": "PERSON"
+        },
+        {
+          "text": "Amrein",
+          "type": "PERSON"
+        },
+        {
+          "text": "Luzärn",
+          "type": "PLACE"
+        },
+        {
+          "text": "zweit Wuche im Merz",
+          "type": "DATE"
+        },
+        {
+          "text": "Sursee",
+          "type": "PLACE"
+        },
+        {
+          "text": "achzgtuusig Franke",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "s.haefliger@rhyschiff-log.ch",
+          "type": "EMAIL"
+        },
+        {
+          "text": "061 693 17 40",
+          "type": "PHONE"
+        },
+        {
+          "text": "041 921 55 36",
+          "type": "PHONE"
+        },
+        {
+          "text": "CH51 0900 0000 4071 2283 6",
+          "type": "IBAN"
+        }
+      ]
+    },
+    {
+      "id": "t04",
+      "style": "hochdeutsch_transkript",
+      "text": "Ähm, ja, also, am Montag um neun Uhr hatten wir, äh, das Steering mit der Geschäftsleitung. Herr, ähm, Herr Pascal Imhof von der Imhof Bautechnik GmbH hat gesagt, also er hat gesagt, die Offerte für das, äh, das Projekt Seerose kommt nächste Woche. Weil, ähm, weil der Einkauf noch drei Punkte klären muss. Ins Protokoll bitte: Die Schnittstelle zu Abacus ist, äh, noch nicht fertig. Auch die Rechnung vom letzten Monat ist offen, also das sind, ähm, hundertzwanzigtausend Franken. Der Imhof sagt, die Deadline ist Ende Monat, aber, äh, das Onboarding macht HR parallel. Die Frau Corinne Baumgartner, ähm, die kommt am 21. Januar nach Wetzikon, also zur, äh, zur Stadt Wetzikon wegen der Bewilligung. Seerose soll, ähm, 20 Prozent günstiger werden. Agenda und Pendenzenliste schickt die Baumgartner per Teams, und, äh, für Rückfragen: 052 233 71 18 oder c.baumgartner@imhof-bau.ch. Am Freitag um vierzehn Uhr dann, ähm, das nächste Meeting.",
+      "secrets": [
+        {
+          "text": "Pascal Imhof",
+          "type": "PERSON"
+        },
+        {
+          "text": "Imhof",
+          "type": "PERSON"
+        },
+        {
+          "text": "Imhof Bautechnik GmbH",
+          "type": "ORG"
+        },
+        {
+          "text": "Projekt Seerose",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Seerose",
+          "type": "PROJECT"
+        },
+        {
+          "text": "hundertzwanzigtausend Franken",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "Corinne Baumgartner",
+          "type": "PERSON"
+        },
+        {
+          "text": "Baumgartner",
+          "type": "PERSON"
+        },
+        {
+          "text": "21. Januar",
+          "type": "DATE"
+        },
+        {
+          "text": "Wetzikon",
+          "type": "PLACE"
+        },
+        {
+          "text": "Stadt Wetzikon",
+          "type": "ORG"
+        },
+        {
+          "text": "052 233 71 18",
+          "type": "PHONE"
+        },
+        {
+          "text": "c.baumgartner@imhof-bau.ch",
+          "type": "EMAIL"
+        }
+      ]
+    },
+    {
+      "id": "t05",
+      "style": "hochdeutsch_transkript",
+      "text": "Gut, also, äh, wir fangen an. Am Donnerstag, ähm, um halb zwei war der Verwaltungsrat, und, äh, der hat das Budget, also das Budget für die Migration freigegeben. Frau Nadia Ferrari von der Ticino Dati SA, ähm, also die Ferrari sagt, der Rollout auf SharePoint geht in drei Wellen. Ähm, die erste Welle ist am 4. März, äh, in Bellinzona. Weil die Lizenzen, also die Lizenzen kosten, ähm, vierundachtzigtausend Franken pro Jahr. Ins Ticket schreibt die IT: Release verschoben. Auch der Vorstand vom, äh, vom Personalverband will eine Kopie vom Protokoll. Herr Marco Pedretti, ähm, der Pedretti, der braucht noch das NDA, also unterschrieben, bis nächste Woche. Seine Nummer ist, äh, 091 825 63 04. Die Gemeinde Giubiasco, ähm, die zahlt die Hälfte, auf das Konto CH38 0839 0012 7754 0010 2. Ähm, ja, und das Projekt heisst intern Castelgrande, also, äh, Castelgrande Zwei. Das nächste Sprint Review ist am Freitag, äh, um zehn.",
+      "secrets": [
+        {
+          "text": "Nadia Ferrari",
+          "type": "PERSON"
+        },
+        {
+          "text": "Ferrari",
+          "type": "PERSON"
+        },
+        {
+          "text": "Ticino Dati SA",
+          "type": "ORG"
+        },
+        {
+          "text": "4. März",
+          "type": "DATE"
+        },
+        {
+          "text": "Bellinzona",
+          "type": "PLACE"
+        },
+        {
+          "text": "vierundachtzigtausend Franken",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "Marco Pedretti",
+          "type": "PERSON"
+        },
+        {
+          "text": "Pedretti",
+          "type": "PERSON"
+        },
+        {
+          "text": "091 825 63 04",
+          "type": "PHONE"
+        },
+        {
+          "text": "Gemeinde Giubiasco",
+          "type": "ORG"
+        },
+        {
+          "text": "Giubiasco",
+          "type": "PLACE"
+        },
+        {
+          "text": "CH38 0839 0012 7754 0010 2",
+          "type": "IBAN"
+        },
+        {
+          "text": "Castelgrande",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Castelgrande Zwei",
+          "type": "PROJECT"
+        }
+      ]
+    },
+    {
+      "id": "t06",
+      "style": "gemischt_en",
+      "text": "Kurzes Update aus dem Steering Committee vom Dienstag, 14 Uhr. Action Items: Lukas Wyss von der Bergwerk Digital AG owned den Go-live von Projekt Nordstern. Die Deadline ist Ende Quartal, aber der Business Case hängt am Board Meeting nächste Woche. Das Stakeholder-Mapping ist zu 80 Prozent done. Ins Backlog kommen 5 Tickets zur Schnittstelle Salesforce, das Release ist für den Sprint nach dem Onboarding geplant. Wyss hat das Budget mit CHF 215'000 approved, inklusive Contingency von 20 Prozent. Auch das NDA mit dem Vendor ist signed. Next Steps: Kickoff mit Mirjam Odermatt am 12. November in Zug, Follow-up per Teams. Odermatt übernimmt das Change Management, HR macht das Training. Kontakt für Escalations: lukas.wyss@bergwerk-digital.ch, +41 41 760 32 19. Weil Finance die Invoice prüfen muss, geht die Zahlung auf CH72 0078 5000 1194 3302 1. Nordstern bleibt Top-Priorität. Bitte die Agenda und das Protokoll bis Freitag reviewen.",
+      "secrets": [
+        {
+          "text": "Lukas Wyss",
+          "type": "PERSON"
+        },
+        {
+          "text": "Wyss",
+          "type": "PERSON"
+        },
+        {
+          "text": "Bergwerk Digital AG",
+          "type": "ORG"
+        },
+        {
+          "text": "Projekt Nordstern",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Nordstern",
+          "type": "PROJECT"
+        },
+        {
+          "text": "CHF 215'000",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "Mirjam Odermatt",
+          "type": "PERSON"
+        },
+        {
+          "text": "Odermatt",
+          "type": "PERSON"
+        },
+        {
+          "text": "12. November",
+          "type": "DATE"
+        },
+        {
+          "text": "Zug",
+          "type": "PLACE"
+        },
+        {
+          "text": "lukas.wyss@bergwerk-digital.ch",
+          "type": "EMAIL"
+        },
+        {
+          "text": "+41 41 760 32 19",
+          "type": "PHONE"
+        },
+        {
+          "text": "CH72 0078 5000 1194 3302 1",
+          "type": "IBAN"
+        }
+      ]
+    },
+    {
+      "id": "t07",
+      "style": "gemischt_en",
+      "text": "Meeting Notes, Weekly Sync. Agenda: 1. Status Rollout, 2. Budget, 3. Hiring. Am Mittwoch um 10:30 hat das Management Team den Forecast besprochen. Daniel Keller vom Partner Alpenblick Consulting GmbH meint, der Pilot von Projekt Lötschberg ist on track, nur die API-Schnittstelle zu Abacus braucht noch ein Refactoring. Keller schätzt den Effort auf drei Sprints. Ins Risk Log: Das Onboarding der Key User verzögert sich, weil HR erst Ende Monat Kapazität hat. Auch der Vorstand will eine Executive Summary für das Board. Die Offerte von Alpenblick liegt bei rund neunzigtausend Franken, das sind 15 Prozent über Plan. Sarah Nussbaumer von der Tellbau AG verhandelt im Procurement bis zum 28. Oktober. Lötschberg geht danach in Visp live, die Gmeind Visp hat den Standort bestätigt. Contact: sarah.nussbaumer@tellbau.ch, 027 946 12 83. Excel-Tracker und Pendenzenliste liegen im SharePoint. Next Meeting: Freitag, gleiche Zeit.",
+      "secrets": [
+        {
+          "text": "Daniel Keller",
+          "type": "PERSON"
+        },
+        {
+          "text": "Keller",
+          "type": "PERSON"
+        },
+        {
+          "text": "Alpenblick Consulting GmbH",
+          "type": "ORG"
+        },
+        {
+          "text": "Alpenblick",
+          "type": "ORG"
+        },
+        {
+          "text": "Projekt Lötschberg",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Lötschberg",
+          "type": "PROJECT"
+        },
+        {
+          "text": "neunzigtausend Franken",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "Sarah Nussbaumer",
+          "type": "PERSON"
+        },
+        {
+          "text": "Tellbau AG",
+          "type": "ORG"
+        },
+        {
+          "text": "28. Oktober",
+          "type": "DATE"
+        },
+        {
+          "text": "Visp",
+          "type": "PLACE"
+        },
+        {
+          "text": "Gmeind Visp",
+          "type": "ORG"
+        },
+        {
+          "text": "sarah.nussbaumer@tellbau.ch",
+          "type": "EMAIL"
+        },
+        {
+          "text": "027 946 12 83",
+          "type": "PHONE"
+        }
+      ]
+    },
+    {
+      "id": "t08",
+      "style": "folie",
+      "text": "Projektstatus Q4 – Steering Committee\n• Projekt: Rheinfall Digital (Auftraggeber: Schaffhauser Stahlguss AG)\n• Projektleitung: Thomas Gasser, Stv. Monika Rüegg\n• Budget: CHF 1,2 Mio., davon 20 Prozent Reserve\n• Meilensteine\n  – Go-live: 15. Januar 2027, Standort Neuhausen\n  – Rollout Excel-Ablösung: Ende Monat\n  – Release 2.3: nächste Woche\n• Offene Punkte (3)\n  – Schnittstelle Abacus ↔ SharePoint, Owner: Gasser\n  – NDA mit Lieferant unterschrieben? → Einkauf (Rüegg)\n  – Onboarding Key User → HR\n• Entscheide Geschäftsleitung\n  – Offerte freigegeben, Rechnung folgt per Ende Monat\n  – Verwaltungsrat informiert am Montag, 9 Uhr\n• Bewilligung: Gmeind Neuhausen am Rheinfall, erwartet bis 30. November\n• Kontakt: t.gasser@sh-stahlguss.ch · 052 624 88 17\n• Ablage: Protokoll, Agenda, Pendenzenliste im Teams-Kanal\n• Nächstes Steering: Freitag, 14 Uhr",
+      "secrets": [
+        {
+          "text": "Rheinfall Digital",
+          "type": "PROJECT"
+        },
+        {
+          "text": "Schaffhauser Stahlguss AG",
+          "type": "ORG"
+        },
+        {
+          "text": "Thomas Gasser",
+          "type": "PERSON"
+        },
+        {
+          "text": "Gasser",
+          "type": "PERSON"
+        },
+        {
+          "text": "Monika Rüegg",
+          "type": "PERSON"
+        },
+        {
+          "text": "Rüegg",
+          "type": "PERSON"
+        },
+        {
+          "text": "CHF 1,2 Mio.",
+          "type": "AMOUNT"
+        },
+        {
+          "text": "15. Januar 2027",
+          "type": "DATE"
+        },
+        {
+          "text": "Neuhausen",
+          "type": "PLACE"
+        },
+        {
+          "text": "Gmeind Neuhausen am Rheinfall",
+          "type": "ORG"
+        },
+        {
+          "text": "30. November",
+          "type": "DATE"
+        },
+        {
+          "text": "t.gasser@sh-stahlguss.ch",
+          "type": "EMAIL"
+        },
+        {
+          "text": "052 624 88 17",
+          "type": "PHONE"
+        }
+      ]
+    }
+  ]
+}

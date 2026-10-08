@@ -262,3 +262,11 @@ def test_bodies_and_roles_without_a_name_are_no_names_in_any_pass():
                   '{"text":"Geschäftsleitung","typ":"PERSON"},{"text":"Stadthuus","typ":"ORT"},'
                   '{"text":"Gmeind Uster","typ":"FIRMA"}]}')
     assert [s.text for s in detect_with_model(text, llm)] == ["Gmeind Uster"]
+
+
+
+def test_a_broken_unicode_escape_does_not_lose_the_whole_answer():
+    r"""Trap set 08.10.2026: the 8B person pass wrote "R\uegg" for "Rüegg" (\u without four hex
+    digits). json.loads refused the whole list, and with it the detection of the text failed."""
+    data = extract_json(r'{"personen": ["Gasser", "R\uegg", "M\u00fcller"]}')
+    assert data["personen"][0] == "Gasser" and data["personen"][2] == "Müller"

@@ -3,7 +3,9 @@
 What is measured: the text that would leave the house after masking (detection +
 vault, exactly as /redact does it). For every marked secret:
   - full leak:    the secret still appears verbatim (case-insensitive, whole word)
-  - partial leak: a significant part of it still appears ("Brigitte" of "Brigitte Aebischer")
+  - partial leak: a significant part of it is left where the secret stood ("Brigitte" of
+                  "Brigitte Aebischer"). Since 08.10.2026 by position: "Wuche" elsewhere in the text
+                  is no partial leak of a masked "zweit Wuche im Merz" (trap set).
 The headline number counts both. Generic words ("AG", "Projekt", "CHF", month names)
 left standing are not leaks: they identify nothing.
 
@@ -24,10 +26,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from clausus.align import split_original
+
 GENERIC = {
     "ag", "gmbh", "sa", "sàrl", "kg", "ltd", "inc", "&", "und", "and", "de", "der", "die", "das", "vo",
     "von", "vom", "em", "dr", "frau", "herr", "projekt", "projekts", "project", "chf", "fr", "franken",
-    "franke", "millionen", "millione", "tuusig", "komma", "filiale", "kunde", "januar", "februar",
+    "franke", "millionen", "millione", "tuusig", "gmeind", "gmeinde", "gemeinde", "stadt", "kanton", "komma", "filiale", "kunde", "januar", "februar",
     "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember",
     "novämber", "dezämber", "ende", "änd", "ändi",
 }
@@ -93,14 +97,44 @@ def _occurrences(text: str, needle: str) -> list[tuple[int, int]]:
     return [(m.start(), m.end()) for m in re.finditer(re.escape(needle), text, re.IGNORECASE)]
 
 
+def _open_ranges(original: str, masked_text: str,
+                 variants: dict[str, list[str]] | None) -> list[tuple[int, int]] | None:
+    """Stretches of the original left in clear, or None if the texts cannot be aligned."""
+    segs = split_original(original, masked_text, variants)
+    if len(segs) == 1 and segs[0]["token"] is None and masked_text != original:
+        return None
+    out, pos = [], 0
+    for seg in segs:
+        n = len(str(seg["text"]))
+        if seg["token"] is None:
+            out.append((pos, pos + n))
+        pos += n
+    return out
+
+
+def _part_left(case: Case, secret: Secret, open_ranges: list[tuple[int, int]]) -> bool:
+    for a, b in _occurrences(case.text, secret.text):
+        for part in _significant_parts(secret.text):
+            for m in re.finditer(rf"(?<!\w){re.escape(part)}(?!\w)", case.text[a:b], re.IGNORECASE):
+                ps, pe = a + m.start(), a + m.end()
+                if any(os_ <= ps and pe <= oe for os_, oe in open_ranges):
+                    return True
+    return False
+
+
 def score_case(case: Case, masked_text: str, n_placeholder_spans: int,
-               masked_spans: list[tuple[int, int]]) -> CaseResult:
+               masked_spans: list[tuple[int, int]],
+               variants: dict[str, list[str]] | None = None) -> CaseResult:
     r = CaseResult(case=case, masked_text=masked_text, placeholders=n_placeholder_spans)
+    open_ranges = _open_ranges(case.text, masked_text, variants)
     for s in case.secrets:
         if _present(s.text, masked_text):
             r.leaks.append(s)
+        elif open_ranges is not None:
+            if _part_left(case, s, open_ranges):
+                r.partial.append(s)
         elif any(_present(p, masked_text) for p in _significant_parts(s.text)):
-            r.partial.append(s)
+            r.partial.append(s)  # texts could not be aligned: the stricter old check
     secret_ranges = [o for s in case.secrets for o in _occurrences(case.text, s.text)]
     r.extra_masked = sum(
         1 for a, b in masked_spans
@@ -141,16 +175,17 @@ def aggregate(results: list[CaseResult]) -> dict:
     }
 
 
-def run_once(cases: list[Case], llm, person_model: str | None) -> list[CaseResult]:
+def run_once(cases: list[Case], llm, person_model: str | None, judge: bool = False) -> list[CaseResult]:
     from clausus.detect import detect
     from clausus.vault import Vault
 
     results = []
     for c in cases:
         vault = Vault()
-        spans = detect(c.text, llm, person_model=person_model)
+        spans = detect(c.text, llm, person_model=person_model, judge=judge)
         masked = vault.pseudonymize(c.text, spans)
-        results.append(score_case(c, masked, len(spans), [(s.start, s.end) for s in spans]))
+        results.append(score_case(c, masked, len(spans), [(s.start, s.end) for s in spans],
+                                  vault.variants()))
     return results
 
 
@@ -164,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", default="runs")
     ap.add_argument("--concat", type=int, default=0,
                     help="join N cases into one long text (measures the effect of length)")
+    ap.add_argument("--judge", action="store_true",
+                    help="let Apertus judge finds only one model pass made (detect/judge.py)")
     args = ap.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -175,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     runs = []
     for i in range(args.runs):
-        results = run_once(cases, llm, settings.fast_model)
+        results = run_once(cases, llm, settings.fast_model, judge=args.judge)
         rep = aggregate(results)
         rep["leaks"] = [{"case": r.case.id, "style": r.case.style, "full": [s.text for s in r.leaks],
                          "partial": [s.text for s in r.partial]} for r in results if r.leaks or r.partial]
@@ -186,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "created_at": datetime.now(UTC).isoformat(),
         "model": settings.llm_name, "fast_model": settings.fast_model,
-        "cases_file": args.cases, "concat": args.concat, "runs": runs,
+        "cases_file": args.cases, "concat": args.concat, "judge": args.judge, "runs": runs,
         "seconds": round(time.monotonic() - started, 1),
     }
     out = Path(args.out)

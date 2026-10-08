@@ -117,3 +117,26 @@ Swiss German dates.
 
 Run: `python -m clausus.eval --cases data/eval/holdout.json --concat 6` ·
 `python -m clausus.eval --cases data/eval/long.json`
+
+## Over-masking set: `traps.json`
+
+8 cases, 113 marked spans, same schema, provenance and license as above. Written by a separate
+agent on 08.10.2026 without seeing the detection code.
+
+Purpose: measure extra masking (the `extra_masked` count), not leaks. Each text (600 to 1200
+characters) is full of words that must stay in clear: roles and bodies without a name
+(Geschäftsleitung, Verwaltigsrat, Gmeind, Vorstand, Einkauf, HR), weekdays and times (Mäntig,
+Fritig, um nüüni, 14 Uhr), relative dates (nächscht Wuche, Ende Monat), business and IT terms
+(Offerte, Rechnig, Schnittstelle, Rollout, Deadline, Onboarding, NDA, Go-live, Sprint, Release),
+document names (Protokoll, Agenda, Pendenzenliste, Adresstabelle), public software used generically
+(Excel, Teams, SharePoint, Abacus, SAP, Salesforce), small counts and percentages, and Swiss German
+function words that look like names (`wil`, `Ins`, `au`), some at sentence start. Real secrets of
+every type are mixed in, so leaks are measured too.
+
+Styles: 3 `mundart` (Zurich, Bern, Basel with a Lucerne speaker), 2 `hochdeutsch_transkript`,
+2 `gemischt_en`, 1 `folie`.
+
+This set targets known failure classes on purpose, so it is a targeted test, not a blind held-out
+set.
+
+Run: `python -m clausus.eval --cases data/eval/traps.json`
