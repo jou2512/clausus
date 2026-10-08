@@ -199,6 +199,47 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 .e,[data-k]{cursor:pointer}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
 .toast.on{opacity:1}
+.toast.act{pointer-events:auto;display:flex;align-items:center;gap:12px}
+.toast button{border:0;border-radius:6px;background:var(--acc);color:#fff;padding:3px 10px;font-size:12.5px;font-weight:600}
+[hidden]{display:none!important}
+/* chip / selection popover: opened by click or tap, so it works on touch too */
+.pop{position:fixed;z-index:10;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:10px 12px;font-size:12.5px;width:min(290px,calc(100vw - 24px));line-height:1.45}
+.pop .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px;word-break:break-word}
+.pop .why{color:var(--ink3);font-size:11.5px;margin-top:6px}
+.pop .prow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pbtn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:4px 10px;font-size:12.5px;color:var(--ink)}
+.pbtn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
+.pbtn:disabled{opacity:.45;cursor:not-allowed}
+.e.kept{opacity:.5;text-decoration:line-through}
+select.tsel,.addrow select{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:3px 6px;font:inherit;font-size:12.5px}
+.addrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 14px 12px;border-top:1px dashed var(--line2);font-size:12px;color:var(--ink3)}
+.plist textarea{resize:vertical;min-height:52px;line-height:1.4}
+.addrow input,.plist input,.plist textarea,.pbar input{flex:1;min-width:120px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:4px 8px;font:inherit;font-size:12.5px;outline:none}
+.addrow input:focus,.plist input:focus,.pbar input:focus,#pf-policy:focus{border-color:var(--acc)}
+/* profile view */
+.pbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px}
+.pbar input{flex:0 1 220px}
+.pbar .state{font-size:12px;color:var(--ink3)}
+.pbar .state.dirty{color:var(--warn)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px;min-width:0}
+.pcard h3{font-size:13.5px;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+.pcard h3 small{font-weight:400;color:var(--ink3);margin-left:auto}
+.pcard .sub{font-size:12px;margin:0 0 10px}
+.plist{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.plist .pi{display:flex;align-items:center;gap:6px;min-width:0}
+.plist .pi > span.txt{flex:1;min-width:0;word-break:break-word}
+.plist .empty{color:var(--ink3);font-size:12px}
+.xbtn{border:1px solid var(--line);background:var(--panel);color:var(--ink3);border-radius:6px;width:26px;height:26px;flex:none;font-size:14px;line-height:1}
+.xbtn:hover{color:var(--bad);border-color:var(--bad-soft)}
+#pf-policy{width:100%;min-height:110px;resize:vertical;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:13px;padding:8px;outline:none}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.cmp > div{border:1px solid var(--line2);border-radius:8px;padding:10px 12px;min-width:0}
+.cmp h4{margin:0 0 6px;font-size:12.5px}
+.cmp ul{margin:0 0 8px;padding-left:18px}.cmp li{margin:2px 0;word-break:break-word}
+.cmp .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin:8px 0 2px}
+.cmp .new{color:var(--acc);font-weight:600}
+@media (max-width:700px){.cmp{grid-template-columns:1fr}}
 
 </style>
 </head>
@@ -207,12 +248,13 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 
 <nav>
   <div class="brand"><div class="logo">C</div>Clausus</div>
-  <button class="navi on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3l9 5-9 5z"/></svg>Playground</button>
-  <button class="navi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Chat</button>
-  <button class="navi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h8v12l-2-1.2L8 14l-2-1.2L4 14z M6 5.5h4M6 8h4"/></svg>Receipts</button>
+  <button class="navi on" data-view="playground"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3l9 5-9 5z"/></svg>Playground</button>
+  <button class="navi" data-view="chat"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Chat</button>
+  <button class="navi" data-view="receipts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h8v12l-2-1.2L8 14l-2-1.2L4 14z M6 5.5h4M6 8h4"/></svg>Receipts</button>
   <div class="navgrp">Setup</div>
-  <button class="navi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>Endpoints</button>
-  <button class="navi"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 7V5a3 3 0 016 0v2M3.5 7h9v6.5h-9z"/></svg>Vault</button>
+  <button class="navi" data-view="endpoints"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>Endpoints</button>
+  <button class="navi" data-view="profile"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2.5h10v11H3z M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/></svg>Profile</button>
+  <button class="navi" data-view="vault"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 7V5a3 3 0 016 0v2M3.5 7h9v6.5h-9z"/></svg>Vault</button>
   <div class="navfoot"><b><span class="dot"></span>The vault stays here</b>The vault never leaves this machine. Nothing leaves without a receipt.</div>
 </nav>
 
@@ -241,6 +283,7 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
       <div class="colhead"><span class="step">1</span><b>What you said</b><span class="where">→ read by detection</span></div>
       <div class="srcs-row" id="srcs"></div>
       <div class="colbody" id="c1"></div>
+      <div class="addrow"><span>Always mask</span><input id="am-text" placeholder="select above, or type"><select id="am-type" class="tsel" aria-label="Type"></select><button class="pbtn" id="am-add">Add</button></div>
     </div>
     <div class="col mid">
       <div class="colhead"><span class="step">2</span><b>What the answering model sees</b><span class="where" id="dest">→ Apertus</span></div>
@@ -287,6 +330,28 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
     <table class="rtable"><thead><tr><th>When</th><th>Run</th><th>Placeholders</th><th>Calls</th><th>Time</th><th>Note</th></tr></thead><tbody id="rlist"></tbody></table>
     <div class="rdetail hidden" id="rdetail"></div>
   </section>
+  <section class="view hidden" id="view-profile">
+    <h2>Profile</h2>
+    <p class="sub">Your organisation's masking rules. Stored encrypted on this machine and never sent to a model as a whole: only the keep rules go to Apertus, and only while the judge is on. “Read our policy” sends the policy text you paste to Apertus to make a proposal.</p>
+    <div class="pbar"><label for="pf-name">Name</label><input id="pf-name"><span>Judge: <b id="pf-judge">…</b></span>
+      <button class="pbtn pri" id="pf-save" style="margin-left:auto">Save</button><button class="pbtn" id="pf-reset">Discard changes</button><span class="state" id="pf-state"></span></div>
+    <div class="pgrid">
+      <div class="pcard"><h3>Keep open <small id="pf-keepn"></small></h3><p class="sub" id="pf-keepsub">Rules the judge reads before it lets a find stay open.</p>
+        <div class="plist" id="pf-keep"></div><button class="pbtn" id="pf-keepadd">+ Add rule</button></div>
+      <div class="pcard"><h3>Always mask <small id="pf-alwaysn"></small></h3><p class="sub">Names you know are confidential. Masked even when detection misses them.</p>
+        <div class="plist" id="pf-always"></div>
+        <div class="plist"><div class="pi"><input id="pf-atext" placeholder="e.g. Huber Treuhand AG"><select id="pf-atype" class="tsel" aria-label="Type"></select><button class="pbtn" id="pf-aadd">Add</button></div></div></div>
+      <div class="pcard"><h3>Never mask <small id="pf-nevern"></small></h3><p class="sub">Exact words that never get a placeholder. Persons are masked even if listed here.</p>
+        <div class="plist" id="pf-never"></div>
+        <div class="plist"><div class="pi"><input id="pf-ntext" placeholder="e.g. NDA"><button class="pbtn" id="pf-nadd">Add</button></div></div></div>
+    </div>
+    <div class="pcard" style="margin-top:12px"><h3>Read our policy</h3>
+      <p class="sub">Paste your privacy or confidentiality policy. Apertus reads it and proposes a profile. The policy text goes to Apertus (listed in the Receipt tab); nothing is saved until you choose “Use this proposal”.</p>
+      <textarea id="pf-policy" placeholder="e.g. Client names and project code names are confidential. Internal tool names (Jira, Teams) may be mentioned openly."></textarea>
+      <div class="prow" style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="pbtn pri" id="pf-read">Make a proposal</button><span class="state" id="pf-rstate" style="font-size:12px;color:var(--ink3)"></span></div>
+      <div id="pf-cmp" hidden></div>
+    </div>
+  </section>
   <section class="view hidden" id="view-endpoints">
     <h2>Endpoints</h2>
     <p class="sub">What this Clausus talks to. Read only: keys live in <code>.env</code>, never in the browser. This page shows whether a key is set, never the key.</p>
@@ -315,12 +380,13 @@ td.srcs{color:var(--ink3);font-size:11.5px;text-align:right;white-space:nowrap}
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="pop" id="pop" hidden role="dialog"></div>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const SAMPLE = "Also, kurz zum Stand: Thomas Brunner von der Huber Treuhand AG will das Projekt Nordlicht bis Ende November abschliessen. Budget sind CHF 180'000, Freigabe durch Claudia Meier. Rückfragen bitte an 079 482 17 63 oder t.brunner@huber-treuhand.ch. Der Workshop findet in Winterthur statt.\n\nSchreib mir daraus drei kurze Pendenzen mit Zuständigkeit.";
 const TOK = /(\[[A-Za-zÄÖÜäöü][A-Za-zÄÖÜäöü_ .\-]{1,40}(?:_\d+)?\])/;
-let byTok = {}, pinned = null, lastRun = null;
+let byTok = {}, pinned = null, lastRun = null, lastSegs = [], playTok = {}, chatMsgs = [], currentView = "playground";
 const secs = ms => ms ? (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + " s" : "";
 const att = {audio: null, audioName: "", images: []};
 let recorder = null, recStart = 0, recTimer = null;
@@ -434,9 +500,17 @@ function md(src) {
 // Placeholders inside already-rendered HTML (tokens never contain < > or quotes).
 const markHtml = (html, restore) => html.replace(new RegExp(TOK.source, "g"),
   p => mark(p, restore && byTok[p] ? byTok[p].original : p, !restore));
-const toast = t => {
-  const n = $("#toast"); n.textContent = t; n.classList.add("on");
-  clearTimeout(toast.h); toast.h = setTimeout(() => n.classList.remove("on"), 3200);
+// toast(text) or toast(text, {label, fn}): with an action the toast takes taps and stays longer.
+const toast = (t, action) => {
+  const n = $("#toast"); n.textContent = t;
+  n.classList.toggle("act", !!action);
+  if (action) {
+    const b = document.createElement("button"); b.textContent = action.label;
+    b.onclick = () => { n.classList.remove("on", "act"); action.fn(); };
+    n.appendChild(b);
+  }
+  n.classList.add("on");
+  clearTimeout(toast.h); toast.h = setTimeout(() => n.classList.remove("on", "act"), action ? 9000 : 3200);
 };
 const cols = [...document.querySelectorAll(".col")];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -575,6 +649,7 @@ async function run() {
   }
   clearInterval(stageTimer); stopProgress();
   byTok = Object.fromEntries(b.vault.map(v => [v.token, v]));
+  lastSegs = b.original_segments || []; playTok = byTok;
   const src = [];
   if (b.transcript !== undefined && att.audio) src.push(`<span class="chip">🎙 ${esc(att.audioName)} · heard ${b.transcript ? "locally" : "nothing"} · <a href="${att.audioUrl}" download="${esc(att.audioName)}">download</a></span>`);
   (b.slides || []).forEach((_, i) => src.push(`<span class="chip">▣ ${esc(att.images[i]?.name || "slide")} · read</span>`));
@@ -608,6 +683,9 @@ document.addEventListener("click", e => {
   if (!n && !e.target.closest(".stages, aside")) return;
   cold();
   if (n && pinned !== n.dataset.k) { pinned = n.dataset.k; hot(pinned); } else pinned = null;
+  // A tap on a placeholder chip (not a drag-selection) opens its actions: works on touch too.
+  const sel = getSelection();
+  if (n && n.closest("#c1, #c2, #c3, #map, #chatlog") && (sel.isCollapsed || !$("#c1").contains(sel.anchorNode))) chipPop(n);
 });
 $("#b-again").onclick = answerAgain;
 $("#b-run").onclick = () => run().catch(e => { setRun(false); cols.forEach(c => c.classList.remove("wait", "busy")); toast("Something went wrong: " + e.message); });
@@ -643,8 +721,11 @@ function showView(name) {
   if (name === "chat") loadChats();
   if (name === "vault") loadVault();
   $("#view-endpoints").classList.toggle("hidden", name !== "endpoints");
+  $("#view-profile").classList.toggle("hidden", name !== "profile");
   if (name === "receipts") loadReceipts();
   if (name === "endpoints") loadEndpoints();
+  if (name === "profile" && !(prof && profDirty())) loadProfile();
+  currentView = name; hidePop();
   document.querySelector("header h1").textContent = name[0].toUpperCase() + name.slice(1);
 }
 const when = iso => { try { return new Date(iso).toLocaleString([], {dateStyle: "short", timeStyle: "medium"}); } catch (e) { return iso; } };
@@ -688,6 +769,7 @@ async function loadEndpoints() {
 let chatId = null, chatVault = {};
 const chatMark = (seg) => seg.token ? `<span class="e ${esc((chatVault[seg.token] || {}).type || "OTHER")}" data-k="${esc(seg.token)}">${esc(seg.text)}</span>` : esc(seg.text);
 function renderChat(messages) {
+  chatMsgs = messages;
   $("#chatlog").innerHTML = messages.length ? messages.map((m, i) => {
     const body = m.role === "user" ? (m.segments || [{text: m.original}]).map(chatMark).join("").replace(/\n/g, "<br>")
                                    : markHtml(md(m.masked), true);
@@ -750,11 +832,7 @@ async function loadVault() {
       : '<tr><td colspan="5" class="no">No saved chats.</td></tr>';
   } catch (e) { toast(e.message); }
 }
-const VIEWS = ["playground", "chat", "receipts", "endpoints", "vault"];
-document.querySelectorAll("nav .navi").forEach((b, i) => {
-  b.dataset.view = VIEWS[i];
-  b.onclick = () => showView(b.dataset.view);
-});
+document.querySelectorAll("nav .navi").forEach(b => { b.onclick = () => showView(b.dataset.view); });
 $("#b-newchat").onclick = () => newChat().catch(e => toast(e.message));
 $("#chatsel").onchange = e => openChat(e.target.value);
 $("#b-send").onclick = () => sendChat();
@@ -785,6 +863,216 @@ $("#theme").onclick = () => {
   const r = document.documentElement, dark = matchMedia("(prefers-color-scheme: dark)").matches;
   r.dataset.theme = (r.dataset.theme || (dark ? "dark" : "light")) === "dark" ? "light" : "dark";
 };
+// --- profile actions on chips and selections ------------------------------------------------
+// The profile lives on the server, encrypted. Nothing of it is kept in this browser.
+const ATYPES = ["PERSON", "ORG", "PROJECT", "PLACE", "OTHER"];
+const typeOpts = sel => ATYPES.map(t => `<option${t === sel ? " selected" : ""}>${t}</option>`).join("");
+const JSONPOST = body => ({method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+const quoted = ws => ws.map(w => `“${w}”`).join(", ");
+const pop = $("#pop");
+let popFor = null, selTimer = null;
+function placePop(rect) {
+  pop.hidden = false;
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  const x = Math.min(Math.max(8, rect.left), innerWidth - w - 8);
+  let y = rect.bottom + 6;
+  if (y + h > innerHeight - 8) y = Math.max(8, rect.top - h - 6);
+  pop.style.left = x + "px"; pop.style.top = y + "px";
+}
+function hidePop() { pop.hidden = true; popFor = null; }
+// Every spelling this placeholder stood for ("Huber Treuhand AG", "Huber Treuhand"), so that
+// "Don't mask" opens all of them, not only the canonical one.
+function spellings(tok, scope) {
+  const out = new Map();
+  const add = t => { t = (t || "").trim(); if (t && !out.has(t.toLowerCase())) out.set(t.toLowerCase(), t); };
+  add(((scope === "chat" ? chatVault : playTok)[tok] || {}).original);
+  (scope === "chat" ? chatMsgs.flatMap(m => m.segments || []) : lastSegs).forEach(s => s.token === tok && add(s.text));
+  return [...out.values()];
+}
+function chipPop(n) {
+  const tok = n.dataset.k, scope = currentView === "chat" ? "chat" : "play";
+  const v = (scope === "chat" ? chatVault : playTok)[tok];
+  if (!v) return;
+  const words = spellings(tok, scope), person = v.type === "PERSON";
+  pop.innerHTML = `<div class="ph"><span class="e tok ${esc(v.type)}">${esc(tok)}</span><span>${esc(quoted(words))}</span></div>
+    <div class="prow"><button class="pbtn pri" data-act="keep"${person ? " disabled" : ""}>Don't mask</button></div>
+    <div class="why">${person ? "Not available for persons: Clausus always masks a person's name, whatever the profile says."
+      : `From now on ${words.length > 1 ? "these stay" : "this stays"} open in every run and chat. Saved in your Profile.`}</div>`;
+  popFor = {kind: "keep", tok, scope, words};
+  placePop(n.getBoundingClientRect());
+}
+function alwaysPop(text, rect, type) {
+  pop.innerHTML = `<div class="ph"><b>Always mask</b><span>${esc(quoted([text]))}</span></div>
+    <div class="prow"><select class="tsel" id="pop-type" aria-label="Type">${typeOpts(type)}</select><button class="pbtn pri" data-act="always">Always mask</button></div>
+    <div class="why">Masked in every run and chat from now on, even when detection misses it. Saved in your Profile.</div>`;
+  popFor = {kind: "always", text};
+  placePop(rect);
+}
+const runAgain = {label: "Run again", fn: () => { showView("playground"); $("#b-run").click(); }};
+function inKnown(words) {
+  const names = $("#known").value.split(/\r?\n/).map(l => l.split("|")[0].trim().toLowerCase()).filter(Boolean);
+  return words.some(w => names.includes(w.toLowerCase()));
+}
+async function keepOpen({tok, scope, words}) {
+  try { for (const w of words) await callClausus("profile/keep", JSONPOST({text: w})); }
+  catch (e) { toast("Not saved: " + e.message); return; }
+  document.querySelectorAll(`.e[data-k="${CSS.escape(tok)}"], [data-k="${CSS.escape(tok)}"] .e`).forEach(x => x.classList.add("kept"));
+  const msg = `${quoted(words)} ${words.length > 1 ? "stay" : "stays"} open from now on.`
+    + (inKnown(words) ? " It is also under Known names: remove it there, or it stays masked." : "");
+  // A chat's vault keeps every placeholder it has issued, so this chat goes on masking the word;
+  // new chats and playground runs leave it open (measured 08.10.2026).
+  if (scope === "chat") toast(msg + " Applies to new chats. This chat keeps its placeholder for it.", {label: "New chat", fn: () => newChat().catch(e => toast(e.message))});
+  else toast(msg + " Run again to apply.", runAgain);
+}
+async function addAlways(text, type) {
+  text = (text || "").replace(/\s+/g, " ").trim();
+  if (!text) { toast("Select words in “What you said”, or type a name."); return false; }
+  try { await callClausus("profile/always", JSONPOST({text, type})); }
+  catch (e) { toast("Not saved: " + e.message); return false; }
+  const msg = `${quoted([text])} is always masked from now on (${type}).`;
+  if (currentView === "chat") toast(msg + " Applies from your next message.");
+  else toast(msg + " Run again to apply.", runAgain);
+  return true;
+}
+pop.addEventListener("click", e => {
+  const a = e.target.closest("[data-act]");
+  if (!a || a.disabled || !popFor) return;
+  const job = popFor, type = $("#pop-type")?.value;
+  hidePop();
+  if (job.kind === "keep") keepOpen(job); else { addAlways(job.text, type); getSelection().removeAllRanges(); $("#am-text").value = ""; }
+});
+document.addEventListener("pointerdown", e => { if (!pop.hidden && !pop.contains(e.target)) hidePop(); }, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") hidePop(); });
+addEventListener("scroll", e => { if (!pop.hidden && !pop.contains(e.target)) hidePop(); }, true);
+addEventListener("resize", () => hidePop());
+// Selecting words in stage 1 (mouse or touch) offers "Always mask" for exactly that text.
+document.addEventListener("selectionchange", () => {
+  clearTimeout(selTimer);
+  selTimer = setTimeout(() => {
+    const sel = getSelection();
+    if (!sel.rangeCount || sel.isCollapsed) return;
+    const r = sel.getRangeAt(0);
+    if (!$("#c1").contains(r.commonAncestorContainer)) return;
+    const text = sel.toString().replace(/\s+/g, " ").trim();
+    if (!text || text.length > 120) return;
+    const chip = (r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement).closest(".e");
+    const type = chip ? ATYPES.find(t => chip.classList.contains(t)) || "ORG" : "ORG";
+    $("#am-text").value = text; $("#am-type").value = type;
+    alwaysPop(text, r.getBoundingClientRect(), type);
+  }, 300);
+});
+$("#am-type").innerHTML = typeOpts("ORG");
+$("#am-add").onclick = async () => { if (await addAlways($("#am-text").value, $("#am-type").value)) $("#am-text").value = ""; };
+$("#am-text").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("#am-add").click(); } });
+
+// --- profile view -----------------------------------------------------------------------------
+let prof = null, profSaved = null, profJudge = false, proposal = null;
+const clone = o => JSON.parse(JSON.stringify(o));
+const profDirty = () => !!prof && JSON.stringify(prof) !== JSON.stringify(profSaved);
+const sameText = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+async function loadProfile() {
+  $("#pf-state").textContent = "Loading…";
+  try {
+    const p = await callClausus("profile", {});
+    profJudge = !!p.judge; delete p.judge;
+    profSaved = p; prof = clone(p); renderProfile();
+  } catch (e) { $("#pf-state").textContent = "Could not load: " + e.message; }
+}
+function markDirty() {
+  const d = profDirty(), s = $("#pf-state");
+  s.textContent = d ? "Unsaved changes" : "Saved on this machine"; s.classList.toggle("dirty", d);
+}
+function renderProfile() {
+  $("#pf-name").value = prof.name;
+  $("#pf-judge").textContent = profJudge ? "on" : "off";
+  $("#pf-judge").className = profJudge ? "yes" : "no";
+  $("#pf-keepsub").textContent = profJudge
+    ? "Rules the judge (Apertus) reads before it lets a find stay open."
+    : "Rules the judge reads before it lets a find stay open. The judge is off on this Clausus (CLAUSUS_JUDGE), so they are kept but not used yet.";
+  $("#pf-keep").innerHTML = prof.keep.map((k, i) => `<div class="pi"><textarea data-keep="${i}" rows="2" aria-label="Keep rule ${i + 1}">${esc(k)}</textarea><button class="xbtn" data-rm="keep:${i}" title="Remove">×</button></div>`).join("")
+    || '<span class="empty">No rules of your own: the judge uses the default rules.</span>';
+  $("#pf-always").innerHTML = prof.always_mask.map((a, i) => `<div class="pi"><span class="e tok ${esc(a.type)}">${esc(a.type)}</span><span class="txt">${esc(a.text)}</span><button class="xbtn" data-rm="always_mask:${i}" title="Remove">×</button></div>`).join("")
+    || '<span class="empty">Nothing yet. Select words in the Playground, or add them here.</span>';
+  $("#pf-never").innerHTML = prof.never_mask.map((w, i) => `<div class="pi"><span class="txt">${esc(w)}</span><button class="xbtn" data-rm="never_mask:${i}" title="Remove">×</button></div>`).join("")
+    || '<span class="empty">Nothing yet. Tap a placeholder in the Playground and choose “Don’t mask”.</span>';
+  // Fit each rule to its text; only measurable while the view is shown (hidden elements measure 0).
+  $("#pf-keep").querySelectorAll("textarea").forEach(t => { if (t.offsetWidth) t.style.height = t.scrollHeight + 2 + "px"; });
+  $("#pf-keepn").textContent = prof.keep.length; $("#pf-alwaysn").textContent = prof.always_mask.length; $("#pf-nevern").textContent = prof.never_mask.length;
+  markDirty();
+}
+// Same semantics as the server (profile.py): a word is either always masked or never masked.
+function addAlwaysLocal(p, text, type) {
+  text = text.trim(); if (!text) return;
+  p.never_mask = p.never_mask.filter(n => !sameText(n, text));
+  if (!p.always_mask.some(a => sameText(a.text, text))) p.always_mask.push({text, type});
+}
+function addNeverLocal(p, text) {
+  text = text.trim(); if (!text) return;
+  p.always_mask = p.always_mask.filter(a => !sameText(a.text, text));
+  if (!p.never_mask.some(n => sameText(n, text))) p.never_mask.push(text);
+}
+async function saveProfile(body, okMsg) {
+  const clean = {...body, keep: body.keep.map(k => k.trim()).filter(Boolean)};
+  try {
+    const p = await callClausus("profile", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(clean)});
+    profSaved = p; prof = clone(p); renderProfile(); toast(okMsg);
+  } catch (e) { toast("Not saved: " + e.message); }
+}
+$("#pf-name").addEventListener("input", e => { prof.name = e.target.value; markDirty(); });
+$("#pf-keep").addEventListener("input", e => { const i = e.target.dataset.keep; if (i != null) { prof.keep[+i] = e.target.value; markDirty(); } });
+$("#view-profile").addEventListener("click", e => {
+  const rm = e.target.closest("[data-rm]");
+  if (!rm || !prof) return;
+  const [list, i] = rm.dataset.rm.split(":");
+  prof[list].splice(+i, 1); renderProfile();
+});
+$("#pf-keepadd").onclick = () => { prof.keep.push(""); renderProfile(); const ins = $("#pf-keep").querySelectorAll("textarea"); ins[ins.length - 1].focus(); };
+$("#pf-atype").innerHTML = typeOpts("ORG");
+$("#pf-aadd").onclick = () => { addAlwaysLocal(prof, $("#pf-atext").value, $("#pf-atype").value); $("#pf-atext").value = ""; renderProfile(); };
+$("#pf-nadd").onclick = () => { addNeverLocal(prof, $("#pf-ntext").value); $("#pf-ntext").value = ""; renderProfile(); };
+$("#pf-atext").addEventListener("keydown", e => { if (e.key === "Enter") $("#pf-aadd").click(); });
+$("#pf-ntext").addEventListener("keydown", e => { if (e.key === "Enter") $("#pf-nadd").click(); });
+$("#pf-save").onclick = () => prof && saveProfile(prof, "Profile saved, encrypted on this machine.");
+$("#pf-reset").onclick = () => { if (profSaved) { prof = clone(profSaved); renderProfile(); } };
+function profileColumn(title, p, base) {
+  const isNew = (list, x) => base && !base[list].some(y => sameText(typeof y === "string" ? y : y.text, typeof x === "string" ? x : x.text));
+  const li = (list, x, label) => `<li${isNew(list, x) ? ' class="new" title="not in your current profile"' : ""}>${label}</li>`;
+  const ul = (list, f) => p[list].length ? `<ul>${p[list].map(x => li(list, x, f(x))).join("")}</ul>` : '<p class="empty" style="margin:0 0 8px">none</p>';
+  return `<div><h4>${esc(title)} · ${esc(p.name)}</h4>
+    <div class="lbl">Keep open</div>${ul("keep", esc)}
+    <div class="lbl">Always mask</div>${ul("always_mask", a => `<span class="e tok ${esc(a.type)}">${esc(a.type)}</span> ${esc(a.text)}`)}
+    <div class="lbl">Never mask</div>${ul("never_mask", esc)}</div>`;
+}
+function renderCmp() {
+  const box = $("#pf-cmp");
+  box.innerHTML = `<div class="cmp">${profileColumn("Current", prof, null)}${profileColumn("Proposal", proposal, prof)}</div>
+    <p class="note" style="margin:8px 0">Green: not in your current profile. Nothing is saved yet.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="pbtn pri" id="pf-use">Use this proposal</button><button class="pbtn" id="pf-merge">Add it to the current profile</button><span class="note" style="margin:0;align-self:center">“Use” replaces the current profile, “Add” keeps what you have.</span></div>`;
+  box.hidden = false;
+  $("#pf-use").onclick = () => saveProfile(proposal, "Proposal saved as your profile.");
+  $("#pf-merge").onclick = () => {
+    const m = clone(prof);
+    proposal.keep.forEach(k => { if (!m.keep.some(x => sameText(x, k))) m.keep.push(k); });
+    proposal.always_mask.forEach(a => addAlwaysLocal(m, a.text, a.type));
+    proposal.never_mask.forEach(n => addNeverLocal(m, n));
+    saveProfile(m, "Proposal added to your profile and saved.");
+  };
+}
+$("#pf-read").onclick = async () => {
+  const policy = $("#pf-policy").value.trim();
+  if (!policy) { toast("Paste your policy first."); return; }
+  if (!prof) await loadProfile();
+  const btn = $("#pf-read"); btn.disabled = true; $("#pf-rstate").textContent = "Apertus is reading the policy… (about 10 to 30 s)";
+  try {
+    const b = await callClausus("profile/from-policy", JSONPOST({policy}));
+    proposal = b.proposal; renderCmp();
+    $("#calls").innerHTML = b.outgoing.map(o => `<div class="call"><span class="k orig">${esc(o.kind)}</span><div><b>${esc(o.step)}</b> → ${esc(o.model)}${o.ms != null ? ` · ${secs(o.ms)}` : ""}<small>${esc(o.destination)} · the policy text you pasted</small></div></div>`).join("");
+    $("#rid").textContent = "Policy proposal (not a run)";
+    $("#pf-rstate").textContent = `Read by ${[...new Set(b.outgoing.map(o => o.model))].join(", ") || "Apertus"}. Listed in the Receipt tab.`;
+  } catch (e) { $("#pf-rstate").textContent = "No proposal: " + e.message; }
+  btn.disabled = false;
+};
+
 $("#c1").innerHTML = '<span style="color:var(--ink3)">Type below and press Run, or tap “Try the sample”.</span>';
 $("#vnote").textContent = "Empty until the first run.";
 loadConfig().then(health);
