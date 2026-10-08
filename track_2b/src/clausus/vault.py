@@ -104,17 +104,18 @@ class Vault:
         return [(e.token, e.type) for e in self._entries]
 
     # --- masking ----------------------------------------------------------------------------
-    def pseudonymize(self, text: str, spans: list[Span]) -> str:
+    def pseudonymize(self, text: str, spans: list[Span], keep_open: set[str] | None = None) -> str:
         """Number placeholders in reading order, then replace from the end so the
-        offsets of earlier spans stay valid."""
+        offsets of earlier spans stay valid. `keep_open` (casefolded) are words the organisation
+        released: the sweep leaves them even if this vault knows them, persons excepted."""
         ordered = sorted(spans, key=lambda s: s.start)
         tokens = [self.token_for(s.text, s.type) for s in ordered]
         out = text
         for s, token in reversed(list(zip(ordered, tokens, strict=True))):
             out = out[:s.start] + token + out[s.end:]
-        return self._sweep(out)
+        return self._sweep(out, keep_open or set())
 
-    def _sweep(self, text: str) -> str:
+    def _sweep(self, text: str, keep_open: set[str] | None = None) -> str:
         """Mask every later mention of something already known (SPEC: once found, always found)."""
         needles: dict[str, set[str]] = {}
         spelled: dict[str, str] = {}  # how the name was found, to tell "Wil" from "wil" (= weil)
@@ -132,8 +133,14 @@ class Vault:
                 if short and short.casefold() not in needles:
                     needles[short.casefold()] = {e.token}
                     spelled[short.casefold()] = short
+        # Released in the profile ("Don't mask"), also in a running chat: the word itself and every
+        # form of the same entry ("Zellweger" for "Zellweger Logistik"). Never a person.
+        released = {e.token for e in self._entries if e.type != "PERSON"
+                    and any(v.casefold() in (keep_open or set()) for v in e.variants)}
         for needle in sorted(needles, key=len, reverse=True):
             tokens = needles[needle]
+            if tokens <= released:
+                continue
             name = spelled.get(needle, needle)
             pattern = re.compile(rf"(?<![\w\[]){re.escape(needle)}(?![\w\]])", re.IGNORECASE)
             if len(tokens) == 1:

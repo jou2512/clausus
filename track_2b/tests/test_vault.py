@@ -169,3 +169,14 @@ def test_a_company_name_made_of_ordinary_words_does_not_spread_to_them():
     v = Vault()
     masked = v.pseudonymize(text, spans_for(text, ("Schweizerische Post", "ORG"), ("Gemeinde Uster", "ORG")))
     assert "schweizerische Lösung" in masked and masked.endswith("gemeinde.")
+
+
+def test_a_word_released_by_the_organisation_is_not_swept_even_if_the_vault_knows_it():
+    """UI check 08.10.2026: after "Don't mask" on "Zellweger Logistik", the next chat message still
+    masked it, because the session vault knew it from an earlier message."""
+    text = "Zellweger Logistik bringt's. Rolf bringt's."
+    v = Vault()
+    v.token_for("Zellweger Logistik", "ORG")
+    v.token_for("Rolf", "PERSON")
+    masked = v.pseudonymize(text, [], keep_open={"zellweger logistik", "rolf"})
+    assert masked == "Zellweger Logistik bringt's. [PERSON_1] bringt's."

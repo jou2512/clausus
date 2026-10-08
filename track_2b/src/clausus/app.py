@@ -186,7 +186,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         vault = Vault()
         vault.preload([(a["text"], a["type"]) for a in p.always_mask] + [(k.text, k.type) for k in known])
         spans = find(text, Recorded(apertus, outgoing, "original"), p)
-        return vault, spans, vault.pseudonymize(text, spans)
+        return vault, spans, vault.pseudonymize(text, spans, {n.casefold() for n in p.never_mask})
 
     models_cache: dict[str, Any] = {"at": 0.0, "models": None}
 
@@ -430,7 +430,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "masked": masked,
             **answered,
             "vault": [{"token": t, "type": ty, "original": o, "sources": sources.get(t, [])}
-                      for t, ty, o in vault.mapping()],
+                      for t, ty, o in vault.mapping() if t in masked],  # not known names absent here
             "outgoing": [o.model_dump() for o in outgoing],
             "receipt_id": run_id,
         })
@@ -561,8 +561,10 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             return None, JSONResponse(status_code=status, content={"status": "error", "error": e.code,
                                                                    "detail": e.message})
 
-    def vault_rows(vault: Vault) -> list[dict[str, str]]:
-        return [{"token": t, "type": ty, "original": o} for t, ty, o in vault.mapping()]
+    def vault_rows(vault: Vault, texts: list[str]) -> list[dict[str, str]]:
+        """The placeholders this chat used, not every always-mask name the profile preloaded."""
+        used = " ".join(texts)
+        return [{"token": t, "type": ty, "original": o} for t, ty, o in vault.mapping() if t in used]
 
     @app.post("/chat/sessions")
     def chat_new() -> JSONResponse:
@@ -579,7 +581,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         s, err = session_or_404(session_id)
         if err:
             return err
-        return JSONResponse(content={"session_id": s.id, "messages": s.messages, "vault": vault_rows(s.vault)})
+        return JSONResponse(content={"session_id": s.id, "messages": s.messages,
+                                     "vault": vault_rows(s.vault, [m["masked"] for m in s.messages])})
 
     @app.delete("/chat/sessions/{session_id}")
     def chat_delete(session_id: str) -> JSONResponse:
@@ -606,7 +609,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             s.vault.preload([(a["text"], a["type"]) for a in p.always_mask]
                             + [(k.text, k.type) for k in req.known_entities])
             spans = find(req.text, Recorded(apertus, outgoing, "original"), p)
-            masked = s.vault.pseudonymize(req.text, spans)
+            masked = s.vault.pseudonymize(req.text, spans, {n.casefold() for n in p.never_mask})
             history = [{"role": "system", "content": _CHAT_SYSTEM}]
             history += [{"role": m["role"], "content": m["masked"]} for m in s.messages]
             history.append({"role": "user", "content": masked})
@@ -631,7 +634,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "masked": masked, "segments": split_original(req.text, masked, s.vault.variants()),
             "answer_masked": answer_masked, "answer": answer, "invented": invented, "unsourced": unsourced,
             "answer_model": req.answer_model or settings.llm_name,
-            "vault": vault_rows(s.vault), "outgoing": [o.model_dump() for o in outgoing],
+            "vault": vault_rows(s.vault, [m["masked"] for m in s.messages]),
+            "outgoing": [o.model_dump() for o in outgoing],
             "timings": {"total_ms": round((time.perf_counter() - started) * 1000)},
             "receipt_id": run_id,
         })

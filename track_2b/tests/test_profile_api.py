@@ -54,3 +54,21 @@ def test_a_policy_becomes_a_proposal_that_is_not_saved_until_confirmed(tmp_path)
     assert client.get("/profile").json()["always_mask"] == []
     client.put("/profile", json=r["proposal"])
     assert client.get("/profile").json()["keep"] == ["Rollen ohne Namen"]
+
+
+def test_the_vault_table_lists_only_what_this_text_masked(tmp_path):
+    """UI check 08.10.2026: always-mask names that do not occur showed up in the playground table."""
+    client = make(tmp_path, [BROAD, EMPTY_P, EMPTY_N, "ok"])
+    client.post("/profile/always", json={"text": "Muster Bau GmbH", "type": "ORG"})
+    b = client.post("/playground/run", json={"text": TEXT}).json()
+    assert "Muster Bau GmbH" not in [r["original"] for r in b["vault"]]
+
+
+def test_do_not_mask_applies_to_the_next_message_of_a_running_chat(tmp_path):
+    client = make(tmp_path, [BROAD, EMPTY_P, EMPTY_N, "ok", BROAD, EMPTY_P, EMPTY_N, "ok"])
+    sid = client.post("/chat/sessions").json()["session_id"]
+    first = client.post(f"/chat/sessions/{sid}/messages", json={"text": TEXT}).json()
+    assert "NDA" not in first["masked"]
+    client.post("/profile/keep", json={"text": "NDA"})
+    second = client.post(f"/chat/sessions/{sid}/messages", json={"text": TEXT}).json()
+    assert "NDA" in second["masked"]

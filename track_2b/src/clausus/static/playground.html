@@ -923,9 +923,8 @@ async function keepOpen({tok, scope, words}) {
   document.querySelectorAll(`.e[data-k="${CSS.escape(tok)}"], [data-k="${CSS.escape(tok)}"] .e`).forEach(x => x.classList.add("kept"));
   const msg = `${quoted(words)} ${words.length > 1 ? "stay" : "stays"} open from now on.`
     + (inKnown(words) ? " It is also under Known names: remove it there, or it stays masked." : "");
-  // A chat's vault keeps every placeholder it has issued, so this chat goes on masking the word;
-  // new chats and playground runs leave it open (measured 08.10.2026).
-  if (scope === "chat") toast(msg + " Applies to new chats. This chat keeps its placeholder for it.", {label: "New chat", fn: () => newChat().catch(e => toast(e.message))});
+  // The chat sweep skips released words since 08.10.2026, so it applies to the next message.
+  if (scope === "chat") toast(msg + " Applies from your next message in this chat too.");
   else toast(msg + " Run again to apply.", runAgain);
 }
 async function addAlways(text, type) {
