@@ -16,7 +16,7 @@ from fastapi import FastAPI, File, Form, Header, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from clausus.assemble import assemble
+from clausus.assemble import assemble, unsourced_numbers
 from clausus.config import Settings
 from clausus.detect import detect
 from clausus.errors import ClaususError
@@ -29,6 +29,7 @@ from clausus.receipt import Outgoing, PlaceholderInfo, Receipt, write_receipt
 from clausus.router import Routes, route
 from clausus.see import IMAGE_TYPES, read_image
 from clausus.sessions import SessionStore, load_or_create_key
+from clausus.tasks.protocol import PROMPT as PROTOCOL_PROMPT
 from clausus.tasks.protocol import make_protocol
 from clausus.vault import Vault
 
@@ -281,7 +282,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         target = external if destination == "external" and external else apertus
         protocol = make_protocol(masked, Recorded(target, outgoing, "masked"))
 
-        result = assemble(json.dumps(protocol, ensure_ascii=False), vault)
+        protocol_masked = json.dumps(protocol, ensure_ascii=False)
+        result = assemble(protocol_masked, vault)
         run_id = f"meeting-{uuid.uuid4().hex[:12]}"
         write_receipt(Receipt(run_id=run_id, model=settings.llm_name, destination=destination,
                               placeholders=_placeholders(vault, spans), outgoing=outgoing,
@@ -291,7 +293,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "protocol": _restore_deep(protocol, vault),
             "destination": destination,
             "seen_by_model": masked,
-            "warnings": {"invented": result.invented, "missing": result.missing},
+            "warnings": {"invented": result.invented, "missing": result.missing,
+                         "unsourced": unsourced_numbers(protocol_masked, [PROTOCOL_PROMPT, masked])},
             "notes": notes,
             "receipt_id": run_id,
         }
@@ -428,8 +431,9 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
     def answer(vault: Vault, masked: str, instruction: str, answer_model: str,
                outgoing: list[Outgoing]) -> dict[str, Any]:
         """The answering model gets the masked text only. Raises ClaususError."""
+        system = instruction.strip() or _DEFAULT_INSTRUCTION
         answer_masked = Recorded(apertus, outgoing, "masked").chat(
-            [{"role": "system", "content": instruction.strip() or _DEFAULT_INSTRUCTION},
+            [{"role": "system", "content": system},
              {"role": "user", "content": masked}], model=answer_model or None, step="answer")
         return {
             "answer_model": answer_model or settings.llm_name,
@@ -438,6 +442,8 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             "invented": sorted({t for t in _ANY_PLACEHOLDER.findall(answer_masked) if not vault.knows(t)}),
             # Sent to the model but absent from its answer: the model dropped that person or fact.
             "missing": [t for t in dict.fromkeys(_TOKEN.findall(masked)) if t not in answer_masked],
+            # Figures it wrote that were in nothing it was sent: invented or computed, never restored.
+            "unsourced": unsourced_numbers(answer_masked, [system, masked]),
         }
 
     @app.post("/playground/answer")
@@ -600,11 +606,13 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
         except ClaususError as e:
             return failure(e)
         invented = sorted({t for t in _ANY_PLACEHOLDER.findall(answer_masked) if not s.vault.knows(t)})
+        unsourced = unsourced_numbers(answer_masked, [m["content"] for m in history])
         answer = s.vault.restore(answer_masked)
         s.messages.append({"role": "user", "original": req.text, "masked": masked,
                            "segments": split_original(req.text, masked)})
         s.messages.append({"role": "assistant", "original": answer, "masked": answer_masked,
-                           "model": req.answer_model or settings.llm_name, "invented": invented})
+                           "model": req.answer_model or settings.llm_name, "invented": invented,
+                           "unsourced": unsourced})
         sessions().save(s)
         run_id = f"chat-{uuid.uuid4().hex[:12]}"
         write_receipt(Receipt(run_id=run_id, model=settings.llm_name,
@@ -612,7 +620,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                               notes=["chat", f"session {s.id}"]), settings.runs_dir)
         return JSONResponse(content={
             "masked": masked, "segments": split_original(req.text, masked),
-            "answer_masked": answer_masked, "answer": answer, "invented": invented,
+            "answer_masked": answer_masked, "answer": answer, "invented": invented, "unsourced": unsourced,
             "answer_model": req.answer_model or settings.llm_name,
             "vault": vault_rows(s.vault), "outgoing": [o.model_dump() for o in outgoing],
             "timings": {"total_ms": round((time.perf_counter() - started) * 1000)},

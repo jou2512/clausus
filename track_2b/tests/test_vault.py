@@ -112,3 +112,30 @@ def test_the_same_text_keeps_its_placeholder_even_when_a_later_pass_types_it_dif
     masked = v.pseudonymize(text, [Span(text="brunnag", type="PROJECT", start=4, end=9, source="model")])
     assert masked == "das [ORG_1] sieht"
     assert v.tokens == [("[ORG_1]", "ORG")]
+
+
+# Numbers the model wrote itself. It only ever sees masked text, so a figure in its answer that was
+# not in what it was sent cannot come from the meeting: it is invented or computed. It passes
+# restore untouched and would read like a fact, so it is reported.
+def test_a_number_the_model_made_up_is_reported():
+    from clausus.assemble import unsourced_numbers
+    sent = "[PERSON_1] will [AMOUNT_1] für 30 Mitarbeitende, Version 2.0."
+    answer = "[PERSON_1] plant CHF 50'000 für 30 Leute, also rund 1'667 pro Kopf, bis 15.11.2026."
+    assert unsourced_numbers(answer, [sent]) == ["CHF 50'000", "1'667", "15.11.2026"]
+
+
+def test_numbers_from_the_input_placeholders_and_small_counts_are_not_reported():
+    from clausus.assemble import unsourced_numbers
+    sent = "Budget [AMOUNT_1], Team von 12 Personen, 5'800 im Jahr, Version 2.0."
+    answer = "1. [PERSON_3] übernimmt [AMOUNT_1]. 2. Die 12 Personen, 5800 im Jahr, Version 2.0, drei Punkte."
+    assert unsourced_numbers(answer, [sent]) == []
+
+
+def test_a_spoken_amount_the_model_made_up_is_reported_too():
+    from clausus.assemble import unsourced_numbers
+    assert unsourced_numbers("Rechne mit zehntausend Franken.", ["Budget [AMOUNT_1]."]) == ["zehntausend Franken"]
+
+
+def test_the_instruction_counts_as_a_source():
+    from clausus.assemble import unsourced_numbers
+    assert unsourced_numbers("Hier 150 Wörter.", ["Text", "Antworte in 150 Wörtern"]) == []

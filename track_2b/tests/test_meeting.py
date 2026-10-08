@@ -120,3 +120,10 @@ def test_invented_placeholder_in_protocol_is_reported(tmp_path):
     client, _ = make(tmp_path, [DETECT, PERSONS, NAMES, bad])
     body = client.post("/meeting", json={"transcript": TRANSCRIPT}).json()
     assert "[PERSON_9]" in body["warnings"]["invented"]
+
+
+def test_a_figure_in_the_protocol_that_was_not_in_the_masked_text_is_reported(tmp_path):
+    made_up = PROTOCOL.replace("Budget prüfen", "Budget auf CHF 90'000 prüfen")
+    client, _ = make(tmp_path, [DETECT, PERSONS, NAMES, made_up])
+    body = client.post("/meeting", json={"transcript": TRANSCRIPT}).json()
+    assert "CHF 90'000" in body["warnings"]["unsourced"]

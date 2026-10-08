@@ -288,3 +288,12 @@ def test_config_lists_endpoints_but_never_keys(tmp_path):
     assert e["detection"]["host"] == "a.test" and e["detection"]["key_set"] is True
     assert e["hear"] == {"mode": "endpoint", "host": "stt.example.ch", "model": "whisper-1", "key_set": True}
     assert e["guardrail"]["key_set"] is True and e["external"]["configured"] is False
+
+
+def test_a_figure_the_answering_model_made_up_is_reported(tmp_path):
+    """The model saw [AMOUNT_1], never the real figure. "CHF 50'000" in its answer survives restore
+    untouched and would read like a fact from the input."""
+    client, _ = make(tmp_path, [DETECT, '{"personen":[]}', '{"namen":[]}',
+                                "[PERSON_1] will [AMOUNT_1], ich schätze CHF 50'000 bis 15.11.2026."])
+    b = client.post("/playground/run", json={"text": TEXT}).json()
+    assert b["unsourced"] == ["CHF 50'000", "15.11.2026"]

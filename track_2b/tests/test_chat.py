@@ -94,3 +94,11 @@ def test_a_chat_message_leaves_a_receipt_that_says_it_came_from_the_chat(tmp_pat
     r = client.get(f"/receipts/{rid}")
     assert r.status_code == 200 and "chat" in r.json()["notes"]
     assert rid in [x["run_id"] for x in client.get("/receipts").json()["receipts"]]
+
+
+def test_a_figure_the_chat_model_made_up_is_reported_and_one_from_the_history_is_not(tmp_path):
+    client, _ = make(tmp_path, [NONE, EMPTY_P, EMPTY_N, "Bei 40 Leuten rechne mit 4'000."])
+    sid = client.post("/chat/sessions").json()["session_id"]
+    a = client.post(f"/chat/sessions/{sid}/messages", json={"text": "Wir sind 40 Leute."}).json()
+    assert a["unsourced"] == ["4'000"]
+    assert client.get(f"/chat/sessions/{sid}").json()["messages"][-1]["unsourced"] == ["4'000"]

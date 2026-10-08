@@ -462,6 +462,7 @@ function showAnswer(b) {
   $("#c3").innerHTML = markHtml(md(b.answer_masked), true);
   const notes = [];
   if (b.invented.length) notes.push(`⚠ The model wrote ${b.invented.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}, a placeholder Clausus never issued. Left as is and reported, never guessed.`);
+  if ((b.unsourced || []).length) notes.push(`⚠ Figures that were in nothing the model was sent: ${b.unsourced.map(t => `<span class="unknown">${esc(t)}</span>`).join(", ")}. The model only saw placeholders, so ${b.unsourced.length === 1 ? "this figure was" : "these figures were"} invented or computed by it, not taken from your input. Check before you use ${b.unsourced.length === 1 ? "it" : "them"}.`);
   if (b.missing.length) notes.push(`ℹ Not used in the answer (${b.missing.length}): ${b.missing.map(t => mark(t, byTok[t] ? byTok[t].original : t, false)).join(", ")}. The model saw ${b.missing.length === 1 ? "it as a placeholder" : "them as placeholders"} and left ${b.missing.length === 1 ? "it" : "them"} out. Check the answer if ${b.missing.length === 1 ? "it" : "one of them"} mattered.`);
   $("#flag").innerHTML = notes.join("<br><br>");
   $("#flag").style.display = notes.length ? "" : "none";
@@ -691,7 +692,7 @@ function renderChat(messages) {
     const body = m.role === "user" ? (m.segments || [{text: m.original}]).map(chatMark).join("").replace(/\n/g, "<br>")
                                    : markHtml(md(m.masked), true);
     const seen = m.role === "user" ? renderTokens(m.masked, false) : esc(m.masked).replace(/\n/g, "<br>");
-    const meta = m.role === "user" ? "you" : `${esc(m.model || "")}${(m.invented || []).length ? ` · ⚠ invented ${m.invented.map(esc).join(", ")}` : ""}`;
+    const meta = m.role === "user" ? "you" : `${esc(m.model || "")}${(m.invented || []).length ? ` · ⚠ invented ${m.invented.map(esc).join(", ")}` : ""}${(m.unsourced || []).length ? ` · ⚠ figures not from your input: ${m.unsourced.map(esc).join(", ")}` : ""}`;
     return `<div class="msg ${m.role}" id="m${i}">${body}<div class="meta"><span>${meta}</span><button data-show="m${i}">what the model ${m.role === "user" ? "saw" : "wrote"}</button></div><div class="seen">${seen}</div></div>`;
   }).join("") : '<p class="sub">No messages yet. Everything you write here is masked before the answering model sees it.</p>';
   const v = $("#view-chat"); v.scrollTop = v.scrollHeight;
