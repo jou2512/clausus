@@ -45,6 +45,42 @@ def test_swiss_formats_are_found_with_exact_text_and_type(text, expected):
     assert expected in found(text)
 
 
+# Spoken numbers. The leaks were seen in the held-out set (07.10.2026: "...tausend" without a
+# currency, a Walliser "...tüüsig Franku"), so these examples are new sentences built from word
+# formation, not copies of the held-out text.
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Also zweihundertsechzigtausend, hat er gesagt", "zweihundertsechzigtausend"),
+        ("dr Offerte isch bi nünzgtüüsig Franku", "nünzgtüüsig Franku"),
+        ("mir rächnet mit sächzgtuusig", "sächzgtuusig"),
+        ("Kosten von dreihundertfünfzigtausend Franken", "dreihundertfünfzigtausend Franken"),
+        ("das wären achthundert Franken pro Monat", "achthundert Franken"),
+        ("es Budget vo zwöi Millione Franke", "zwöi Millione Franke"),
+        ("rund eine Million CHF", "eine Million CHF"),
+    ],
+)
+def test_spoken_amounts_are_found(text, expected):
+    assert (expected, "AMOUNT") in found(text)
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("mir träffed üs di zweit Wuche im Merz", "zweit Wuche im Merz"),
+        ("Abnahme in der letzten Woche im Oktober", "letzten Woche im Oktober"),
+        ("si chunt ds erscht Wuchenänd im Auguscht", "erscht Wuchenänd im Auguscht"),
+    ],
+)
+def test_dialect_week_dates_are_found(text, expected):
+    assert (expected, "DATE") in found(text)
+
+
+def test_number_words_that_are_no_amount_stay():
+    assert found("Tausend Dank, das sind Tausende von Ideen und hundert Prozent.") == set()
+    assert found("Nächste Woche im Büro, die erste Woche war gut.") == set()
+
+
 def test_offsets_point_at_the_exact_text():
     text = "Hallo, ruf 079 412 33 87 an."
     (span,) = find_rule_spans(text)

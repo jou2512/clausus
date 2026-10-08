@@ -13,9 +13,17 @@ from clausus.models import Span
 
 _MONTHS = (
     r"Januar|Jänner|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|"
-    r"Oktober|Okt\.|November|Novämber|Dezember|Dezämber"
+    r"Oktober|Okt\.|November|Novämber|Dezember|Dezämber|Merz|Auguscht"
 )
 _THOUSANDS = r"\d{1,3}(?:['’]\d{3})+|\d+"
+_CURRENCY = r"Franken|Franke|Franku|Stutz|CHF"
+# "tausend" and its dialect forms (Zürich "tuusig", Wallis "tüüsig").
+_THOUSAND_WORD = r"(?:tausend|tuusig|tüüsig|tüsig|tausig)"
+_SMALL_NUMBER_WORD = (
+    r"ei|eis|eine|einer|zwei|zwöi|zwo|drei|drü|drüü|vier|füf|fünf|sechs|sächs|sibe|sieben|"
+    r"acht|nün|neun|zäh|zehn|anderthalb|eineinhalb|zweieinhalb"
+)
+_ORDINAL = r"(?:erst|ersch|zweit|dritt|viert|letzt|letscht|lescht)\w*"
 
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("EMAIL", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")),
@@ -40,7 +48,21 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         r"\b\d+(?:[.,]\d+)?\s?(?:Mio\.?|Millionen|Millione|Mrd\.?|Milliarden)(?:\s?(?:CHF|Franken|Franke|Fr\.))?",
         re.IGNORECASE)),
     # Spoken thousands in Swiss German or German words: "füfedriissgtuusig Franke", "achtzgtuusig Stutz".
-    ("AMOUNT", re.compile(r"\b[\wäöü]+(?:tuusig|tausend)\s+(?:Franken|Franke|Stutz|CHF)\b", re.IGNORECASE)),
+    # A compound ending in a thousand-word is an amount even without a currency: a transcript
+    # repeats a figure in words ("CHF 184'000. Also hundert...tausend"). Held-out set 07.10.2026:
+    # both spoken forms without a rule leaked. "Tausend" alone and "Tausende" stay.
+    ("AMOUNT", re.compile(
+        rf"\b[\wäöü]+{_THOUSAND_WORD}\b(?:\s+(?:{_CURRENCY})\b)?", re.IGNORECASE)),
+    # Spoken hundreds only with a currency: "achthundert Franken", but not "hundert Prozent".
+    ("AMOUNT", re.compile(rf"\b[\wäöü]*hundert[\wäöü]*\s+(?:{_CURRENCY})\b", re.IGNORECASE)),
+    # A number word before millions: "zwöi Millione Franke", "eine Million CHF".
+    ("AMOUNT", re.compile(
+        rf"\b(?:{_SMALL_NUMBER_WORD})\s+(?:Millionen|Millione|Million|Milliarden|Milliarde)"
+        rf"(?:\s+(?:{_CURRENCY})\b)?", re.IGNORECASE)),
+    # A numbered week in a month: "di zweit Wuche im Merz", "letzten Woche im Oktober". The article
+    # stays in clear, as with "Projekt", so the masked text keeps its grammar.
+    ("DATE", re.compile(
+        rf"\b{_ORDINAL}\s+(?:Woch|Wuch)[\wäöü]*\s+(?:im|in|vom|vo|em)\s+(?:{_MONTHS})\b", re.IGNORECASE)),
     # A number with Swiss thousands separators is an amount even without a currency: the second half
     # of "CHF 4'000 bis 7'000", "rund 5'800". Joel's chat 07.10.2026: the 70B pass left all of these
     # in clear on a long text. Inside "CHF 4'000" the longer currency span wins (resolve_overlaps).
