@@ -30,7 +30,7 @@ def test_session_file_holds_no_plain_text(tmp_path):
     s.messages.append({"role": "user", "original": "Ruf Anna Keller an", "masked": "Ruf [PERSON_1] an"})
     store.save(s)
     raw = b"".join(p.read_bytes() for p in tmp_path.rglob("*") if p.is_file())
-    assert b"Ralph" not in raw and b"Keller" not in raw and b"PERSON_1" not in raw
+    assert b"Anna" not in raw and b"Keller" not in raw and b"PERSON_1" not in raw
 
 
 def test_session_loads_back_with_the_same_key(tmp_path):

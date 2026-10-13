@@ -142,6 +142,7 @@ contained `R\uegg`, which used to fail the whole detection. On HTTP 5xx or 429 a
 retried once.
 
 **Other models.**
+
 - `Flix-AI/flix-swissgerman-full` (Apache-2.0) turns speech into text. We use it because
   Apertus's own audio input invented the end of our test recording and got 2 of 11
   confidential spans right (2 more in part), while Flix got 8 right and 2 in part (one 50 s

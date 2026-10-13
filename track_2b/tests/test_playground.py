@@ -120,8 +120,8 @@ def test_upload_with_audio_and_slide_joins_everything_before_masking(tmp_path):
     b = r.json()
     assert b["transcript"] == "Anna Keller ruft morgen an."
     assert b["slides"] == ["Projekt Nordlicht – Kunde: Meier Bau AG"]
-    assert "[PERSON_1]" in b["masked"] and "Ralph" not in b["masked"]
-    assert "Ralph" not in json.dumps(seen[-1]["messages"])  # answer call: placeholders only
+    assert "[PERSON_1]" in b["masked"] and "Anna" not in b["masked"]
+    assert "Anna" not in json.dumps(seen[-1]["messages"])  # answer call: placeholders only
     assert b["answer"] == "Ruf Anna Keller an."
     assert [o["step"] for o in b["outgoing"]][:2] == ["see", "detect"]
 
@@ -192,14 +192,14 @@ def test_reanswer_uses_the_stored_masked_text_and_skips_detection(tmp_path):
     b = r.json()
     assert len(seen) == calls_before + 1  # one answer call, no detection
     assert seen[-1]["model"] == "apertus-v1.5-8b"
-    assert "Ralph" not in json.dumps(seen[-1]["messages"]) and "[PERSON_1]" in json.dumps(seen[-1]["messages"])
+    assert "Anna" not in json.dumps(seen[-1]["messages"]) and "[PERSON_1]" in json.dumps(seen[-1]["messages"])
     assert b["answer"] == "B: Anna Keller und [ORG_9]"
     assert b["invented"] == ["[ORG_9]"]
     assert b["answer_model"] == "apertus-v1.5-8b"
     assert b["receipt_id"] != first["receipt_id"]
     rec = json.loads((tmp_path / f"{b['receipt_id']}.json").read_text(encoding="utf-8"))
     assert [o["step"] for o in rec["outgoing"]] == ["answer"]
-    assert "Ralph" not in json.dumps(rec, ensure_ascii=False)
+    assert "Anna" not in json.dumps(rec, ensure_ascii=False)
 
 
 def test_reanswer_unknown_or_expired_run_is_404(tmp_path):
@@ -273,7 +273,7 @@ def test_receipts_list_newest_first_without_originals(tmp_path):
     first = items[0]
     assert first["placeholders"] == 1 and first["calls"] == 4
     assert first["original_calls"] == 3 and first["masked_calls"] == 1
-    assert "Ralph" not in r.text
+    assert "Anna" not in r.text
 
 
 def test_config_lists_endpoints_but_never_keys(tmp_path):

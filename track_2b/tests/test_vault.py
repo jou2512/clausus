@@ -109,7 +109,7 @@ def test_the_same_text_keeps_its_placeholder_even_when_a_later_pass_types_it_dif
     v = Vault()
     assert v.token_for("Brunnag", "ORG") == "[ORG_1]"
     text = "das brunnag sieht"
-    masked = v.pseudonymize(text, [Span(text="brunnag", type="PROJECT", start=4, end=9, source="model")])
+    masked = v.pseudonymize(text, [Span(text="brunnag", type="PROJECT", start=4, end=11, source="model")])
     assert masked == "das [ORG_1] sieht"
     assert v.tokens == [("[ORG_1]", "ORG")]
 

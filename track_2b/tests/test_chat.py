@@ -43,7 +43,7 @@ def test_two_messages_share_one_vault_and_the_model_sees_only_masked_history(tmp
     assert b["masked"] == "Wann erreiche ich [PERSON_1]?"  # same person, same placeholder
     assert b["answer"] == "Anna Keller erreichst du am Morgen."
     history = json.dumps(seen[-1]["messages"], ensure_ascii=False)
-    assert "Ralph" not in history and "Keller" not in history
+    assert "Anna" not in history and "Keller" not in history
     assert "Ruf bitte [PERSON_1] an." in history and "Klar, ich rufe [PERSON_1] an." in history
 
 
@@ -75,7 +75,7 @@ def test_failed_detection_stores_nothing(tmp_path):
     client, _ = make(tmp_path, [], down=True)
     sid = client.post("/chat/sessions").json()["session_id"]
     r = client.post(f"/chat/sessions/{sid}/messages", json={"text": "Anna Keller ruft an."})
-    assert r.status_code == 503 and "Ralph" not in r.text
+    assert r.status_code == 503 and "Anna" not in r.text
     assert client.get(f"/chat/sessions/{sid}").json()["messages"] == []
 
 
