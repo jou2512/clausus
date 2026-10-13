@@ -143,7 +143,7 @@ Run: `python -m clausus.eval --cases data/eval/traps.json`
 
 ## State at submission (13.10.2026)
 
-Commit `4c8a69b`, one run per set, without → with the judge (the shipped default is with):
+Commit `3c86bfc`, one run per set, without → with the judge (the shipped default is with):
 held-out 0.5 % → 0.5 % (1 of 191), held-out joined 0.5 % → 1.1 %, `long.json` 0.0 % → 0.0 %,
 `traps.json` 0.9 % → 0.9 %, `cases.json` 0.6 % → 0.6 %. Spans masked although not secret:
 2 → 1, 3 → 1, 5 → 3, 11 → 5, 1 → 1. The held-out set has not been blind since the leaks of

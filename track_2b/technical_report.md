@@ -257,7 +257,7 @@ uv run python -m clausus.eval --cases data/eval/holdout.json --judge
 uv run python -m clausus.eval --cases data/eval/holdout.json --concat 6 --judge
 ```
 
-Numbers in this report: commit `4c8a69b`, Apertus 1.5 on the Hack Apertus endpoint,
+Numbers in this report: commit `3c86bfc`, Apertus 1.5 on the Hack Apertus endpoint,
 `temperature: 0`. On 13.10. a fresh clone built and started in about 2 min (some base layers cached), the speech model (about 3 GB) downloaded in another 6 to 8 min, and the first upload of 50 s audio plus a text came back after 167 s on CPU, with only placeholders sent to the answering model.
 
 ## 8. Next steps
