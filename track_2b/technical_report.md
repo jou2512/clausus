@@ -1,6 +1,7 @@
 # Technical report — Clausus
 
-A masking layer, built on Apertus, for confidential meetings in Swiss German.
+A masking layer, built on Apertus, that keeps confidential content out of every model call:
+text, slides and Swiss German audio.
 
 - **Track:** Track 2B — Clausus
 - **Event:** Online
@@ -9,11 +10,12 @@ A masking layer, built on Apertus, for confidential meetings in Swiss German.
 
 ## 1. Summary
 
-Swiss companies want to use language models on their meetings: protocols, decisions, action
-items. Such meetings are in Swiss German, they name clients, amounts and projects, and the
-tools that transcribe them well mostly run on US clouds. A company can settle the privacy
-question for one tool, but then the protocol goes to a second tool that nobody checked.
-That pattern came up again and again in a Swiss founders' community we are part of.
+Swiss companies want to use language models on what they work with every day: notes, documents,
+slides, recordings. That material names clients, amounts and projects, and the tools that handle
+it well mostly run on US clouds. A company can settle the privacy question for one tool, but then
+the result goes to a second tool that nobody checked. I saw that pattern again and again in a
+Swiss founders' community I am part of, most often with meetings held in Swiss German. That is
+why Clausus also takes Swiss German audio, not only text.
 
 Clausus is one layer that every model call goes through. It turns the Swiss German audio into
 text on the company's own machine. It also reads slides and text, finds what is confidential
@@ -22,11 +24,14 @@ with a placeholder. The model that writes the answer only ever sees `[PERSON_1]`
 `[AMOUNT_1]`. The originals stay in a vault on the company's side and are put back at the end.
 Every run leaves a receipt that lists each call that left Clausus, and whether it carried
 masked or original text.
+Clausus runs as its own app with a playground and an API, or as a guardrail in a LiteLLM
+proxy in front of the models a company already uses: any model behind an OpenAI-compatible API.
+If Clausus is down, the proxy lets nothing through.
 
-Detection runs on Apertus 1.5, in five layers. On a held-out set of 24 invented meeting texts
+Detection runs on Apertus 1.5, in five layers. On a held-out set of 24 invented business texts
 (191 marked spans), the first measurement leaked **2.6 %** of the spans. Microsoft Presidio
 leaked **51.8 %** on the same set with the same scoring. The current version leaks
-0.5 % (1 of 191) on that set. That number is no longer blind, because we saw the held-out leaks
+0.5 % (1 of 191) on that set. That number is no longer blind, because I saw the held-out leaks
 (section 5).
 
 ## 2. Architecture
@@ -48,7 +53,7 @@ Two containers, started by `make run` (`docker-compose.yml`):
 | Apertus 1.5 70B / 8B | — | Detection, judging, slide reading and the answer | An OpenAI-compatible endpoint (`LLM_BASE_URL`) |
 
 **Detection** (`src/clausus/detect/`) has five layers. Each model pass has blind spots the
-others do not share, and we measured this rather than assumed it:
+others do not share, and I measured this rather than assumed it:
 
 1. **Rules**: regular expressions for what has a fixed form, such as phones, e-mails, IBAN,
    AHV numbers, amounts (including "zwöiefüfzgtuusig Franke" and "45'000" without a currency),
@@ -62,7 +67,7 @@ others do not share, and we measured this rather than assumed it:
    only when it says so clearly; an unsure or unreadable verdict keeps the placeholder. Persons
    are never judged, because a missed person is the worst leak. The judge reads the
    organisation's own rules for what may stay open ("weekdays", "roles without names",
-   "Excel"). We added it after tracing each needless placeholder in a long text: about two
+   "Excel"). I added it after tracing each needless placeholder in a long text: about two
    thirds came from a single pass. A majority vote would have dropped those too, and with them
    the one real surname that only the person pass had found.
 
@@ -78,8 +83,8 @@ the main reason Clausus beats Presidio on the same spans: Presidio judges each m
 own.
 
 **Router and final check** (`router.py`, `final_check.py`): code reads a rules file and decides
-per task whether it stays local or may go, masked, to an external model. Nothing said in a
-meeting can change that. Before anything goes external, the rules run again on the masked
+per task whether it stays local or may go, masked, to an external model. Nothing in the
+content can change that. Before anything goes external, the rules run again on the masked
 text, and Apertus is asked whether anything is still identifiable. Any hit means the task
 stays local. The default sends nothing external.
 
@@ -100,7 +105,7 @@ confirm, and each "don't mask" or "always mask" click adds to it.
 
 **Integration**: `POST /redact`, `POST /meeting`, `POST /meeting/upload`,
 `GET /receipts/{id}`, and `POST /beta/litellm_basic_guardrail_api`. With the last one,
-Clausus works as a guardrail in an existing LiteLLM proxy (`docs/litellm.md`). We tested this
+Clausus works as a guardrail in an existing LiteLLM proxy (`docs/litellm.md`). I tested this
 end to end against LiteLLM 1.83.9: the model saw placeholders and the user got the originals.
 With Clausus stopped, the request failed with HTTP 500 and the model received nothing.
 
@@ -108,10 +113,10 @@ With Clausus stopped, the request failed with HTTP 500 and the model received no
 
 Clausus can be deployed in all three ways. The code is the same, only `LLM_BASE_URL` changes.
 
-- **c) Sovereign Swiss cloud**: this is how we developed it. Apertus runs on the Hack Apertus
-  endpoint, which is Swiss-hosted. We also ran the speech model on **Phoeniqs** (Swiss cloud,
+- **c) Sovereign Swiss cloud**: this is how I developed it. Apertus runs on the Hack Apertus
+  endpoint, which is Swiss-hosted. I also ran the speech model on **Phoeniqs** (Swiss cloud,
   cluster `ai-3`) on an H100 in an OpenShift VM. There, 50 s of audio took **3.4 s** (14.7×
-  real time; 5.3 s on the cold first run). The same file takes 224 s in our CPU container and
+  real time; 5.3 s on the cold first run). The same file takes 224 s in my CPU container and
   about 14 s on a local RTX 3070. These are one run per environment, on different days.
 - **a) On-premise**: both containers run on any Docker host. Apertus 8B and 70B are open
   weights and can be served with any OpenAI-compatible server (for example vLLM) on the
@@ -143,8 +148,8 @@ retried once.
 
 **Other models.**
 
-- `Flix-AI/flix-swissgerman-full` (Apache-2.0) turns speech into text. We use it because
-  Apertus's own audio input invented the end of our test recording and got 2 of 11
+- `Flix-AI/flix-swissgerman-full` (Apache-2.0) turns speech into text. I use it because
+  Apertus's own audio input invented the end of my test recording and got 2 of 11
   confidential spans right (2 more in part), while Flix got 8 right and 2 in part (one 50 s
   recording, 01.10.2026).
 - Microsoft Presidio runs only as a baseline in evaluation (`eval_baselines/`).
@@ -155,24 +160,24 @@ Nothing else generates or judges content.
 
 All evaluation data is invented and written for this repository (`data/eval/`, CDLA-Permissive-2.0).
 Large public organisations (Swisscom, SBB, a cantonal bank) appear in a few cases, because
-real meetings mention them. IBAN and AHV numbers carry invalid check digits on purpose.
+real business texts mention them. IBAN and AHV numbers carry invalid check digits on purpose.
 
 | Set | Cases | Spans | Purpose | Blind? |
 |---|---:|---:|---|---|
-| `cases.json` | 24 | 167 | development: we fixed against it | no |
+| `cases.json` | 24 | 167 | development: I fixed against it | no |
 | `holdout.json` | 24 | 191 | written by a separate agent after the first fixes; the reported number | first run yes, later runs no |
 | `long.json` | 4 | 89 | long texts (1.0–1.4k chars) | no: it set the section size |
 | `traps.json` | 8 | 113 | written to break Clausus (dialect, short forms, over-masking) by an agent without code access | no: fixes were built on its leaks |
 
 Four styles of six cases each: speech-to-text output, written Swiss German (Zurich, Bern, Basel,
 Lucerne, Valais), slide text, and German with English business terms. The only recording is
-50 s of a team member reading an invented text. No data from other people is used.
+50 s of me reading an invented text. No data from other people is used.
 
 ## 5. Evaluation
 
 **Metric.** Leak rate = the share of marked spans that still appear in the text the answering
-model sees, fully or in part. A partial leak counts only where the span stood (we changed this
-on 08.10.: before, a shared word anywhere counted). We also count **over-masking**: spans
+model sees, fully or in part. A partial leak counts only where the span stood (I changed this
+on 08.10.: before, a shared word anywhere counted). I also count **over-masking**: spans
 masked although they are not secret. Over-masking makes the answer useless, and the leak
 rate alone hides it.
 
@@ -202,11 +207,11 @@ is with):
 | `cases.json`, development (167) | 0.6 % (1) | 0.6 % (1) | 1 → 1 |
 
 The judge halves the needless placeholders and leaves the leaks where they were. The one extra
-leak on the joined set is a single span in a single run; we have seen differences of one span
+leak on the joined set is a single span in a single run; I have seen differences of one span
 between identical runs before. Each run takes 20 s to 2 min for a whole set. Only the held-out
 first-contact number is blind; read the rest as the state of the code, not as a result.
 
-**Length matters.** All short cases are under 400 characters. When we joined six held-out cases
+**Length matters.** All short cases are under 400 characters. When I joined six held-out cases
 into one text, one detection call per text leaked 9.4 %. With 400-character sections the same
 spans leak 2.1 % (07.10.). The benchmark only showed this after a live test with a real
 2755-character text, where amounts and a surname reached the model in clear.
@@ -215,23 +220,23 @@ spans leak 2.1 % (07.10.). The benchmark only showed this after a live test with
 dialect traps for the text layer. It adds a new class of error, **mishearing**: "Huber Treuhand
 AG" became "Hoover Treuhand AG", "Brunner AG" became "Bruno AG", and "Bank Zug" lost "Zug". A
 misheard name is still masked as a name, but the original name is no longer in the text, so
-the vault cannot match it later. On the H100 the transcript had the same mishearings as on our
+the vault cannot match it later. On the H100 the transcript had the same mishearings as on my
 local GPU: faster, not more accurate. The transcript is not identical across environments
 either: in a cold-start run on CPU (13.10.) "Projekt Alpenblick" came out as "Alpublick".
 
 **Tests.** 271 unit and integration tests (`make test`). On the core modules
-(detection, vault, guardrail) we broke the code on purpose, and each deliberate bug turned a
+(detection, vault, guardrail) I broke the code on purpose, and each deliberate bug turned a
 test red.
 
 ## 6. Limitations
 
-- **The held-out set is no longer blind.** We saw its leaks and fixed the general forms behind
+- **The held-out set is no longer blind.** I saw its leaks and fixed the general forms behind
   them (numbers written as words, Swiss German week dates). The honest number is the first one,
   2.6 %. The later numbers show the direction, not a blind result.
-- **The sets are small and synthetic,** and written by models we steered. A set marked by hand
+- **The sets are small and synthetic,** and written by models I steered. A set marked by hand
   by people who did not build Clausus is the next step. It did not make it into this round.
 - **Mostly single runs.** Apart from the first held-out measurement (3 runs), each number is
-  one run. Repeated runs at `temperature: 0` agreed where we made them, but we have not shown
+  one run. Repeated runs at `temperature: 0` agreed where I made them, but I have not shown
   that the endpoint is deterministic.
 - **What still leaks** are names only the models can find: a large public organisation
   ("Schweizerische Post"), a place ("Castelgrande"), and amounts or dates in vague Swiss German.
@@ -243,7 +248,7 @@ test red.
   environment, outside the volume.
 - **Not certified.** The design follows what Swiss data protection law (revDSG) and sector
   regulators ask for: no US provider in the data path, data stays in Switzerland, every call is
-  logged. We have no certification to show for it.
+  logged. I have no certification to show for it.
 
 ## 7. Reproducibility
 

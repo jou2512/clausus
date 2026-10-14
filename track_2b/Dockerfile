@@ -3,9 +3,10 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 
-COPY pyproject.toml ./
+# Versions pinned from uv.lock (`uv export ... -o constraints.txt`), so a later build installs what was tested.
+COPY pyproject.toml constraints.txt ./
 COPY src ./src
-RUN pip install --no-cache-dir . \
+RUN pip install --no-cache-dir -c constraints.txt . \
     && useradd --create-home clausus \
     && mkdir -p /data/runs && chown clausus /data/runs
 USER clausus

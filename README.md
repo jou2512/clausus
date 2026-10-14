@@ -1,15 +1,19 @@
 # Clausus
 
-A masking layer for confidential meetings, built with Apertus for
-[Hack Apertus](https://hackapertus.ch/), Track 2B.
+A masking layer, built with Apertus for [Hack Apertus](https://hackapertus.ch/)
+Track 2B, that keeps confidential content out of every model call.
 
-Clausus takes a meeting as Swiss German audio, slides and text, finds what is
-confidential (people, companies, projects, amounts, dates, contact data) and
-replaces it with placeholders before any model writes the protocol. The model
+Clausus takes text, slides and Swiss German audio, finds what is confidential
+(people, companies, projects, amounts, dates, contact data) and replaces it with
+placeholders before any model sees it. The model
 only ever sees `[PERSON_1]`, `[ORG_2]`, `[AMOUNT_1]`. The originals stay in a
 vault on your side and are put back into the answer at the end. Every run
 leaves a receipt that lists what left Clausus, and whether it was masked or
 original.
+
+Clausus runs on its own (playground, chat, API) or as a guardrail in a LiteLLM
+proxy, in front of any model behind an OpenAI-compatible API. If Clausus is down,
+the proxy lets nothing through.
 
 The project lives in [`track_2b/`](track_2b/). The write-up is
 [`track_2b/technical_report.md`](track_2b/technical_report.md).
@@ -31,7 +35,7 @@ back. It also has a chat whose vault is stored encrypted.
 
 - **Port 8080 taken?** Set `CLAUSUS_PORT=8180` (or any free port) in `.env`.
 - **No `make` (Windows)?** Run `docker compose up --build` inside `track_2b/`.
-- **Speed on CPU:** speech recognition runs locally. On our machine a 50 second
+- **Speed on CPU:** speech recognition runs locally. On my machine a 50 second
   recording plus one slide took about 3.5 minutes end to end on CPU.
 - **Health:** `curl localhost:8080/health` reports the model endpoint and the
   speech service.
