@@ -16,13 +16,14 @@ The Swiss companies I talk to want two things at the same time. They want to use
 models on what they work with every day: notes, documents, slides and above all meetings, which
 are mostly held in Swiss German. And they have to stay compliant: client names, amounts and
 projects must not end up with a US cloud provider, and they must be able to show where their
-data went. Today they have to choose. The tools that understand Swiss German audio well run on
-US clouds, and the ones they are allowed to use understand Swiss German poorly. Even where the
-privacy question is settled for one tool, the result moves on to a second tool that nobody
+data went. The strongest models, and the tools that understand Swiss German audio well, run on
+US clouds. So companies either stay away from them or send data they should not send. Even where
+the privacy question is settled for one tool, the result moves on to a second tool that nobody
 checked. I heard this again and again in a Swiss founders' community I am part of.
 
-Clausus is my answer to that: privacy and Swiss German in one place, built on Apertus, because
-Apertus is open, made in Switzerland, and runs where the company decides.
+Clausus lets them use any model, including the strongest ones, without the confidential content
+ever reaching it, and it understands Swiss German audio on the company's own side. It is built on
+Apertus, because Apertus is open, made in Switzerland, and runs where the company decides.
 
 ### What it does
 
@@ -49,17 +50,20 @@ leaked **51.8 %** on the same set with the same scoring. The current version lea
   with the real names put back. Next to it are the vault, the receipt and a chat. The playground
   is built for this hackathon, to make every step visible. It is a window into the system, not
   the product interface.
-- **API**: `POST /redact` and `POST /meeting/upload` for one's own tools.
+- **API** for one's own tools: masking (`/redact`), meetings from text or from audio, slides and
+  text (`/meeting`, `/meeting/upload`), receipts (`/receipts`), the confidentiality profile
+  (`/profile`, including a proposal from a written policy), an encrypted chat (`/chat/sessions`)
+  and health checks.
 - **Guardrail**: existing apps keep their code and only point at a LiteLLM proxy with Clausus in
   front of the model (`docs/litellm.md`).
 
-### Why I built it this way
+### How I went about it
 
-I measured before I polished. The first thing after a working pipeline was a held-out set and a
-comparison with Presidio, the common open-source tool for this job. Every detection layer exists
-because a measurement showed a blind spot in the others. Speech runs on a dedicated local model
-because Apertus's own audio input invented text in my test. And everything fails closed: when a
-part is unsure or down, nothing goes out.
+I started with detection, because a leak there breaks everything else, and compared it early
+with Microsoft Presidio on a held-out set. A further detection layer was added each time a test
+showed something the existing ones missed (section 2). Speech runs on a dedicated local model
+because Apertus's own audio input invented text in my test recording. When a part fails or is
+unsure, Clausus sends nothing.
 
 ## 2. Architecture
 
@@ -294,16 +298,17 @@ transcription endpoint). Today that is Apertus and the Flix speech model. The ne
 make this a first-class function: a company plugs in a model trained for its own work, and
 Clausus uses it for detection, speech or the answer.
 
-- **Model packages per sector.** Ready-made packages for SMEs, trust companies, medical
+- **First, fine-tuning Apertus for Clausus's task in general**: finding what is confidential in
+  Swiss business text and Swiss German speech. That improves every installation at once.
+- **Model packages per sector** on top of that. Ready-made packages for SMEs, trust companies, medical
   practices and public offices: a fine-tuned Apertus detector, the sector's types and rules
   (what counts as confidential there), examples and a default profile. A trust company gets
   mandates, tax IDs and client numbers out of the box, a practice gets patients and diagnoses.
-- **Training on the company's own data.** Its client and staff names, its vocabulary, its
-  dialect, so detection and speech recognition fit that company.
+- **Optionally, one more step down to a single company**: a model trained on its own names,
+  vocabulary and dialect, on top of the general and the sector model.
 - **A small local detector** trained on Apertus's decisions (teacher → student), so most texts
   need no model call and the expensive passes run only where it is unsure.
-- **Better Swiss German speech**: the speech model fine-tuned on the company's names and
-  dialect, plus correcting mishearings with its name list before detection.
+- **Better Swiss German speech**: the speech model fine-tuned the same way, general first, plus correcting mishearings with its name list before detection.
 - **A held-out set marked by people**, in several dialects.
 
 ## License

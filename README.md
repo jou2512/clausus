@@ -25,9 +25,10 @@ the proxy lets nothing through.
 Swiss companies want to use language models on their notes, documents, slides and
 meetings, which are mostly in Swiss German. At the same time they have to stay
 compliant: client names, amounts and projects must not end up with a US cloud
-provider. Today they have to choose between a model that understands Swiss German
-and one they are allowed to use. Clausus removes that choice, built on Apertus
-because it is open, made in Switzerland and runs where the company decides.
+provider, where the strongest models run. Clausus lets them use any model without
+the confidential content ever reaching it, and understands Swiss German audio on
+their own side. It is built on Apertus because it is open, made in Switzerland and
+runs where the company decides.
 
 ## Status and where it is going
 
@@ -35,9 +36,9 @@ This is the hackathon prototype. The playground is built to make every step
 visible, not as the final interface. The direction is a package a company installs
 once, with its own trained models plugged in: every model Clausus uses already sits
 behind a configurable OpenAI-compatible endpoint. Next come model packages per
-sector (SMEs, trust companies, medical practices, public offices), training on a
-company's own names and dialect, and a small local detector trained on Apertus's
-decisions. Details in section 8 of the report.
+First Apertus fine-tuned for Clausus's task in general, then model packages per
+sector (SMEs, trust companies, medical practices, public offices), and optionally
+one more step down to a single company's names and dialect. Details in section 8 of the report.
 
 ## Run it
 
@@ -68,7 +69,10 @@ back. It also has a chat whose vault is stored encrypted.
 | `POST /redact` | Text in, masked text and placeholder list out |
 | `POST /meeting` | Transcript in, protocol with real names out |
 | `POST /meeting/upload` | Audio, slides and text in one call |
-| `GET /receipts/{id}` | What left Clausus in that run |
+| `GET /receipts`, `GET /receipts/{id}` | What left Clausus, per run |
+| `GET/PUT /profile`, `POST /profile/keep`, `/profile/always`, `/profile/from-policy` | The confidentiality profile: what stays open, what is always masked, a proposal from a written policy |
+| `POST /chat/sessions`, `POST /chat/sessions/{id}/messages` | Chat with an encrypted vault |
+| `GET /health`, `GET /live` | Model endpoint and speech service status |
 | `POST /beta/litellm_basic_guardrail_api` | Use Clausus as a LiteLLM guardrail ([docs](track_2b/docs/litellm.md)) |
 
 ## License
