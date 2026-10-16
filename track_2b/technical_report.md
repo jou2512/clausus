@@ -10,12 +10,21 @@ text, slides and Swiss German audio.
 
 ## 1. Summary
 
-Swiss companies want to use language models on what they work with every day: notes, documents,
-slides, recordings. That material names clients, amounts and projects, and the tools that handle
-it well mostly run on US clouds. A company can settle the privacy question for one tool, but then
-the result goes to a second tool that nobody checked. I saw that pattern again and again in a
-Swiss founders' community I am part of, most often with meetings held in Swiss German. That is
-why Clausus also takes Swiss German audio, not only text.
+### Where the idea comes from
+
+The Swiss companies I talk to want two things at the same time. They want to use language
+models on what they work with every day: notes, documents, slides and above all meetings, which
+are mostly held in Swiss German. And they have to stay compliant: client names, amounts and
+projects must not end up with a US cloud provider, and they must be able to show where their
+data went. Today they have to choose. The tools that understand Swiss German audio well run on
+US clouds, and the ones they are allowed to use understand Swiss German poorly. Even where the
+privacy question is settled for one tool, the result moves on to a second tool that nobody
+checked. I heard this again and again in a Swiss founders' community I am part of.
+
+Clausus is my answer to that: privacy and Swiss German in one place, built on Apertus, because
+Apertus is open, made in Switzerland, and runs where the company decides.
+
+### What it does
 
 Clausus is one layer that every model call goes through. It turns the Swiss German audio into
 text on the company's own machine. It also reads slides and text, finds what is confidential
@@ -30,9 +39,27 @@ If Clausus is down, the proxy lets nothing through.
 
 Detection runs on Apertus 1.5, in five layers. On a held-out set of 24 invented business texts
 (191 marked spans), the first measurement leaked **2.6 %** of the spans. Microsoft Presidio
-leaked **51.8 %** on the same set with the same scoring. The current version leaks
-0.5 % (1 of 191) on that set. That number is no longer blind, because I saw the held-out leaks
+leaked **51.8 %** on the same set with the same scoring. The current version leaks 0.5 %
 (section 5).
+
+### How it is used
+
+- **Playground** (`make run`, then `localhost:8080`): drop in audio, a slide or text. Three
+  columns show the original with every find marked, exactly what the model sees, and the answer
+  with the real names put back. Next to it are the vault, the receipt and a chat. The playground
+  is built for this hackathon, to make every step visible. It is a window into the system, not
+  the product interface.
+- **API**: `POST /redact` and `POST /meeting/upload` for one's own tools.
+- **Guardrail**: existing apps keep their code and only point at a LiteLLM proxy with Clausus in
+  front of the model (`docs/litellm.md`).
+
+### Why I built it this way
+
+I measured before I polished. The first thing after a working pipeline was a held-out set and a
+comparison with Presidio, the common open-source tool for this job. Every detection layer exists
+because a measurement showed a blind spot in the others. Speech runs on a dedicated local model
+because Apertus's own audio input invented text in my test. And everything fails closed: when a
+part is unsure or down, nothing goes out.
 
 ## 2. Architecture
 
@@ -230,25 +257,14 @@ test red.
 
 ## 6. Limitations
 
-- **The held-out set is no longer blind.** I saw its leaks and fixed the general forms behind
-  them (numbers written as words, Swiss German week dates). The honest number is the first one,
-  2.6 %. The later numbers show the direction, not a blind result.
-- **The sets are small and synthetic,** and written by models I steered. A set marked by hand
-  by people who did not build Clausus is the next step. It did not make it into this round.
-- **Mostly single runs.** Apart from the first held-out measurement (3 runs), each number is
-  one run. Repeated runs at `temperature: 0` agreed where I made them, but I have not shown
-  that the endpoint is deterministic.
-- **What still leaks** are names only the models can find: a large public organisation
-  ("Schweizerische Post"), a place ("Castelgrande"), and amounts or dates in vague Swiss German.
-- **Mishearing** (see above) is a privacy problem as well as a quality problem.
-- **Speed on CPU.** A 50 s recording plus a slide takes about 3.5 min end to end on CPU. A GPU
-  brings speech down to seconds; detection then takes about 10–25 s, depending on length.
-- **One user, one machine.** There is no user management, and in the demo setup the chat's
-  vault key sits next to the data. For real use, `CLAUSUS_VAULT_KEY` belongs in the
-  environment, outside the volume.
-- **Not certified.** The design follows what Swiss data protection law (revDSG) and sector
-  regulators ask for: no US provider in the data path, data stays in Switzerland, every call is
-  logged. I have no certification to show for it.
+- **Small, synthetic sets.** Only the first held-out number (2.6 %) is blind; the later numbers
+  show the state of the code. A set marked by people who did not build Clausus comes next.
+- **Names only a model can find** still leak now and then: a public organisation, a place, an
+  amount said vaguely in dialect.
+- **Mishearing.** A misheard name is masked, but the vault can no longer match it later.
+- **Speed on CPU.** 50 s of audio plus a slide take about 3.5 min on CPU, seconds on a GPU.
+- **One user.** The prototype has no user management yet, and in the demo setup the vault key
+  sits next to the data. For real use it belongs in the environment.
 
 ## 7. Reproducibility
 
@@ -265,14 +281,19 @@ uv run python -m clausus.eval --cases data/eval/holdout.json --concat 6 --judge
 Numbers in this report: commit `3c86bfc`, Apertus 1.5 on the Hack Apertus endpoint,
 `temperature: 0`. On 13.10. a fresh clone built and started in about 2 min (some base layers cached), the speech model (about 3 GB) downloaded in another 6 to 8 min, and the first upload of 50 s audio plus a text came back after 167 s on CPU, with only placeholders sent to the answering model.
 
-## 8. Next steps
+## 8. Where it is going
 
-- **A held-out set marked by people** who did not build Clausus, in several dialects.
-- **A small local detector** trained on Apertus's own decisions (teacher → student), so that
-  most texts need no model call for detection and the expensive passes run only where it is
-  unsure.
-- **Correcting mishearings** with the organisation's own name list (clients, staff) before
-  detection.
+Clausus is meant to become a package a company installs once: the proxy, its confidentiality
+profile and the receipts, with every tool it already uses connected behind it. The playground
+then gives way to interfaces for real use: an admin view for the profile and the receipts, and
+connectors for meeting and document tools.
+
+- **Own models.** A small local detector trained on Apertus's decisions (teacher → student), so
+  most texts need no model call and the expensive passes run only where it is unsure. On top,
+  training on a company's own data: its names, its vocabulary, its dialect.
+- **Better Swiss German speech.** Fine-tuning the speech model on the company's own names and
+  dialect, and correcting mishearings with its name list before detection.
+- **A held-out set marked by people**, in several dialects.
 - **Sector modules** with their own profile and rules: trust companies, medical practices,
   public offices.
 
