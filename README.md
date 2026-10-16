@@ -15,8 +15,29 @@ Clausus runs on its own (playground, chat, API) or as a guardrail in a LiteLLM
 proxy, in front of any model behind an OpenAI-compatible API. If Clausus is down,
 the proxy lets nothing through.
 
-The project lives in [`track_2b/`](track_2b/). The write-up is
-[`track_2b/technical_report.md`](track_2b/technical_report.md).
+- **Demo video (2 min):** <https://youtu.be/OSoTQuUp_lg>
+- **Report (PDF):** [`track_2b/Clausus_Report.pdf`](track_2b/Clausus_Report.pdf),
+  source [`track_2b/technical_report.md`](track_2b/technical_report.md)
+- **Code:** everything lives in [`track_2b/`](track_2b/)
+
+## Why
+
+Swiss companies want to use language models on their notes, documents, slides and
+meetings, which are mostly in Swiss German. At the same time they have to stay
+compliant: client names, amounts and projects must not end up with a US cloud
+provider. Today they have to choose between a model that understands Swiss German
+and one they are allowed to use. Clausus removes that choice, built on Apertus
+because it is open, made in Switzerland and runs where the company decides.
+
+## Status and where it is going
+
+This is the hackathon prototype. The playground is built to make every step
+visible, not as the final interface. The direction is a package a company installs
+once, with its own trained models plugged in: every model Clausus uses already sits
+behind a configurable OpenAI-compatible endpoint. Next come model packages per
+sector (SMEs, trust companies, medical practices, public offices), training on a
+company's own names and dialect, and a small local detector trained on Apertus's
+decisions. Details in section 8 of the report.
 
 ## Run it
 
