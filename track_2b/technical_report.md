@@ -288,14 +288,23 @@ profile and the receipts, with every tool it already uses connected behind it. T
 then gives way to interfaces for real use: an admin view for the profile and the receipts, and
 connectors for meeting and document tools.
 
-- **Own models.** A small local detector trained on Apertus's decisions (teacher → student), so
-  most texts need no model call and the expensive passes run only where it is unsure. On top,
-  training on a company's own data: its names, its vocabulary, its dialect.
-- **Better Swiss German speech.** Fine-tuning the speech model on the company's own names and
-  dialect, and correcting mishearings with its name list before detection.
+**The core of it: plugging in your own trained models.** Every model Clausus uses already sits
+behind a configurable OpenAI-compatible endpoint (`LLM_BASE_URL`, `LLM_NAME`, and the
+transcription endpoint). Today that is Apertus and the Flix speech model. The next step is to
+make this a first-class function: a company plugs in a model trained for its own work, and
+Clausus uses it for detection, speech or the answer.
+
+- **Model packages per sector.** Ready-made packages for SMEs, trust companies, medical
+  practices and public offices: a fine-tuned Apertus detector, the sector's types and rules
+  (what counts as confidential there), examples and a default profile. A trust company gets
+  mandates, tax IDs and client numbers out of the box, a practice gets patients and diagnoses.
+- **Training on the company's own data.** Its client and staff names, its vocabulary, its
+  dialect, so detection and speech recognition fit that company.
+- **A small local detector** trained on Apertus's decisions (teacher → student), so most texts
+  need no model call and the expensive passes run only where it is unsure.
+- **Better Swiss German speech**: the speech model fine-tuned on the company's names and
+  dialect, plus correcting mishearings with its name list before detection.
 - **A held-out set marked by people**, in several dialects.
-- **Sector modules** with their own profile and rules: trust companies, medical practices,
-  public offices.
 
 ## License
 
