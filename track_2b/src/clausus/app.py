@@ -12,10 +12,10 @@ from typing import Annotated, Any
 from urllib.parse import urlparse
 
 import httpx
-from starlette.concurrency import run_in_threadpool
 from fastapi import FastAPI, File, Form, Header, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from clausus.align import split_original
 from clausus.assemble import assemble, unsourced_numbers
