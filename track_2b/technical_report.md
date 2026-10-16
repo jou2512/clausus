@@ -6,7 +6,7 @@ text, slides and Swiss German audio.
 - **Track:** Track 2B — Clausus
 - **Event:** Online
 - **Team:** Clausus — Joel Scheuner
-- **Demo:** `DEMO_LINK`
+- **Demo:** https://youtu.be/OSoTQuUp_lg
 
 ## 1. Summary
 
