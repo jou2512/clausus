@@ -15,7 +15,7 @@ Clausus runs on its own (playground, chat, API) or as a guardrail in a LiteLLM
 proxy, in front of any model behind an OpenAI-compatible API. If Clausus is down,
 the proxy lets nothing through.
 
-- **Demo video (2 min):** <https://youtu.be/OSoTQuUp_lg>
+- **Demo video (2 min):** <https://youtu.be/_YovNe6f4yA>
 - **Report (PDF):** [`track_2b/Clausus_Report.pdf`](track_2b/Clausus_Report.pdf),
   source [`track_2b/technical_report.md`](track_2b/technical_report.md)
 - **Code:** everything lives in [`track_2b/`](track_2b/)
