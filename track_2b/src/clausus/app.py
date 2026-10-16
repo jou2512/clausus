@@ -12,6 +12,7 @@ from typing import Annotated, Any
 from urllib.parse import urlparse
 
 import httpx
+from starlette.concurrency import run_in_threadpool
 from fastapi import FastAPI, File, Form, Header, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -340,7 +341,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
                     raise ClaususError("unsupported_image", f"Unsupported image type: {img.content_type}.")
             spoken = ""
             if audio is not None:
-                heard = hear.transcribe(await audio.read(), audio.filename or "audio")
+                heard = await run_in_threadpool(hear.transcribe, await audio.read(), audio.filename or "audio")
                 spoken = heard.text
                 if heard.local:
                     notes.append(f"audio transcribed locally ({heard.duration_s:.0f} s on {heard.device})")
@@ -528,7 +529,7 @@ def create_app(settings: Settings | None = None, http_client: httpx.Client | Non
             spoken = ""
             if audio is not None:
                 t0 = time.perf_counter()
-                heard = hear.transcribe(await audio.read(), audio.filename or "audio")
+                heard = await run_in_threadpool(hear.transcribe, await audio.read(), audio.filename or "audio")
                 hear_ms = round((time.perf_counter() - t0) * 1000)
                 spoken = heard.text
                 if heard.local:
